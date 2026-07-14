@@ -1,0 +1,42 @@
+{
+  "groups": [
+    {
+      "goPrefix": "ParseMode",
+      "doc": "Parse mode for message text/caption formatting, e.g. SendMessageOptions.ParseMode. Not enumerated anywhere scrapable in the Bot API docs (sendMessage's parse_mode param just links out to \"formatting options\"), so hand-curated here instead of scraped from scripts/api.json.",
+      "members": [
+        {"name": "HTML", "value": "HTML"},
+        {"name": "MarkdownV2", "value": "MarkdownV2"},
+        {"name": "Markdown", "value": "Markdown"}
+      ]
+    },
+    {
+      "goPrefix": "DiceEmoji",
+      "doc": "Emoji accepted by SendDiceRequest.Emoji, selecting the dice animation. The docs prose lists the emoji themselves but never names them, so the Go names here are hand-curated.",
+      "members": [
+        {"name": "Dice", "value": "🎲"},
+        {"name": "Darts", "value": "🎯"},
+        {"name": "Basketball", "value": "🏀"},
+        {"name": "Football", "value": "⚽"},
+        {"name": "Bowling", "value": "🎳"},
+        {"name": "SlotMachine", "value": "🎰"}
+      ]
+    },
+    {
+      "goPrefix": "ChatAction",
+      "doc": "Chat action accepted by SendChatActionRequest.Action and KeepChatAction. sendChatAction's docs prose lists these inline (\"typing for text messages, upload_photo for photos, ...\") without a scrapable delimiter, so hand-curated here.",
+      "members": [
+        {"name": "Typing", "value": "typing"},
+        {"name": "UploadPhoto", "value": "upload_photo"},
+        {"name": "RecordVideo", "value": "record_video"},
+        {"name": "UploadVideo", "value": "upload_video"},
+        {"name": "RecordVoice", "value": "record_voice"},
+        {"name": "UploadVoice", "value": "upload_voice"},
+        {"name": "UploadDocument", "value": "upload_document"},
+        {"name": "ChooseSticker", "value": "choose_sticker"},
+        {"name": "FindLocation", "value": "find_location"},
+        {"name": "RecordVideoNote", "value": "record_video_note"},
+        {"name": "UploadVideoNote", "value": "upload_video_note"}
+      ]
+    }
+  ]
+}

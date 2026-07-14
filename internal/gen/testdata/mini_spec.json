@@ -1,0 +1,88 @@
+{
+  "api_version": "test-1.0",
+  "items": [
+    {
+      "name": "Person",
+      "kind": "type",
+      "description": "A simple person.",
+      "fields": [
+        {"name": "id", "type": "Integer", "description": "Unique identifier."},
+        {"name": "first_name", "type": "String", "description": "First name of the person."}
+      ]
+    },
+    {
+      "name": "Animal",
+      "kind": "type",
+      "description": "A creature that shares fields with Robot for the Creature union.",
+      "fields": [
+        {"name": "id", "type": "Integer", "description": "Unique identifier."},
+        {"name": "type", "type": "String", "description": "Type of the creature, always “animal”."},
+        {"name": "name", "type": "String", "description": "Optional. Name of the animal."},
+        {"name": "is_domestic", "type": "Boolean", "description": "Optional. True, if the animal is domesticated, defaults to True."},
+        {"name": "owner", "type": "Person", "description": "Optional. Owner of the animal."}
+      ]
+    },
+    {
+      "name": "Robot",
+      "kind": "type",
+      "description": "A creature that shares fields with Animal for the Creature union.",
+      "fields": [
+        {"name": "id", "type": "Integer", "description": "Unique identifier."},
+        {"name": "type", "type": "String", "description": "Type of the creature, always “robot”."},
+        {"name": "model", "type": "String", "description": "Optional. Model designation."}
+      ]
+    },
+    {
+      "name": "Creature",
+      "kind": "union",
+      "description": "Either an Animal or a Robot.",
+      "members": ["Animal", "Robot"]
+    },
+    {
+      "name": "getAnimal",
+      "kind": "method",
+      "description": "Use this method to get information about an animal.",
+      "params": [
+        {"name": "id", "type": "Integer", "required": "Yes", "description": "Unique identifier of the animal."}
+      ],
+      "returns": "On success, the requested Animal object is returned."
+    },
+    {
+      "name": "listAnimals",
+      "kind": "method",
+      "description": "Use this method to list every known animal.",
+      "returns": "Returns an Array of Animal objects."
+    },
+    {
+      "name": "removeAnimal",
+      "kind": "method",
+      "description": "Use this method to remove an animal.",
+      "params": [
+        {"name": "id", "type": "Integer", "required": "Yes", "description": "Unique identifier of the animal to remove."}
+      ],
+      "returns": "Returns True on success."
+    },
+    {
+      "name": "getCreature",
+      "kind": "method",
+      "description": "Use this method to get a creature of unspecified kind.",
+      "returns": "On success, returns Creature."
+    },
+    {
+      "name": "mysteryMethod",
+      "kind": "method",
+      "description": "Deliberately vague method exercising the unresolved-return-type fallback.",
+      "returns": "Something that isn't described in a way this generator recognizes at all."
+    },
+    {
+      "name": "sendGreeting",
+      "kind": "method",
+      "description": "Use this method to send a greeting to a chat.",
+      "params": [
+        {"name": "chat_id", "type": "Integer or String", "required": "Yes", "description": "Unique identifier for the target chat."},
+        {"name": "text", "type": "String", "required": "Optional", "description": "Text of the greeting."}
+      ],
+      "returns": "On success, the created Person is returned."
+    }
+  ]
+}

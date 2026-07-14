@@ -1,0 +1,57 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      # The tag is the only place a release version is decided, so it must
+      # agree with version.go's Version constant — otherwise `import
+      # "github.com/.../golagram"` at v1.2.3 and Version=="1.0.0" would
+      # silently disagree about what shipped.
+      - name: Verify tag matches version.go
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          ver="$(sed -n 's/^const Version = "\(.*\)"$/\1/p' version.go)"
+          if [ "$tag" != "$ver" ]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match version.go's Version constant (\"$ver\") — update version.go and retag."
+            exit 1
+          fi
+
+      - name: Build
+        run: go build ./...
+
+      - name: Test (with race detector)
+        run: go test ./... -race -count=1
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes
+
+      # Best-effort: makes proxy.golang.org (and so pkg.go.dev) pick up the
+      # new version immediately instead of waiting for someone's first `go
+      # get` to trigger the fetch. Not required for the release to be
+      # usable — `go get` would trigger the same fetch lazily regardless —
+      # so a failure here doesn't fail the release.
+      - name: Prime the Go module proxy
+        run: |
+          curl -sf "https://proxy.golang.org/github.com/apizbe/golagram/@v/${GITHUB_REF_NAME}.info" > /dev/null || true

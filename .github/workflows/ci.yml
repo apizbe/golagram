@@ -1,0 +1,145 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: gofmt
+        run: |
+          fmt_out="$(gofmt -l .)"
+          if [ -n "$fmt_out" ]; then
+            echo "The following files are not gofmt'd:"
+            echo "$fmt_out"
+            exit 1
+          fi
+
+      - name: Test (with race detector)
+        run: go test ./... -race -count=1
+
+      # Coverage gate: fails the build if total statement coverage drops
+      # below the floor. The floor starts at the honest measured number
+      # (~40% as of 2026-07-08, not the aspirational 60% once assumed) and
+      # ratchets up over time — raise MIN_COVERAGE as coverage improves,
+      # never lower it to make a red build green.
+      #
+      # examples/... is excluded: those are runnable demos with no _test.go
+      # files by design (see examples/README.md), so their 0%-covered
+      # statements would dilute the library's own real coverage number
+      # rather than measuring anything meaningful.
+      - name: Coverage gate
+        run: |
+          go list ./... | grep -v '/examples/' | xargs go test -covermode=atomic -coverprofile=coverage.out
+          total=$(go tool cover -func=coverage.out | tail -1 | grep -oE '[0-9]+\.[0-9]+')
+          echo "Total coverage: ${total}%"
+          MIN_COVERAGE=35
+          if (( $(echo "$total < $MIN_COVERAGE" | bc -l) )); then
+            echo "Coverage ${total}% is below the ${MIN_COVERAGE}% floor"
+            exit 1
+          fi
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: golangci-lint
+        run: |
+          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
+          golangci-lint run ./...
+
+  govulncheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+  # storage/redis is a separate Go module (its own go.mod, needing
+  # github.com/redis/go-redis/v9) so the root module stays stdlib-only —
+  # go test ./... at the repo root never touches it. No real Redis service
+  # container is needed: the test suite runs entirely against miniredis, a
+  # pure-Go in-memory fake covering the GET/SET/DEL/EXPIRE/GETEX surface
+  # this module actually uses.
+  storage-redis:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: storage/redis
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: gofmt
+        run: |
+          fmt_out="$(gofmt -l .)"
+          if [ -n "$fmt_out" ]; then
+            echo "The following files are not gofmt'd:"
+            echo "$fmt_out"
+            exit 1
+          fi
+
+      - name: Test (with race detector)
+        run: go test ./... -race -count=1
+
+      - name: golangci-lint
+        run: |
+          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
+          golangci-lint run ./...
+
+  codegen-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      # types.gen.go/methods.gen.go must always be what scripts/api.json
+      # produces — this catches a hand-edit to a generated file, or
+      # api.json drifting from the generator's actual output, before it
+      # ships. Regenerating from Telegram's live API happens separately;
+      # this job only checks internal consistency of what's already
+      # committed.
+      - name: Regenerate and diff
+        run: |
+          go generate ./...
+          if ! git diff --exit-code -- types.gen.go methods.gen.go consts.gen.go; then
+            echo "Generated files are out of sync with scripts/api.json — run 'go generate ./...' and commit the result."
+            exit 1
+          fi
