@@ -183,6 +183,41 @@ func TestBot_CallbackQueryUpdate_TriggersZeroMessageHandlers(t *testing.T) {
 	}
 }
 
+// Every other test drives callback queries through bindCallback+runWorkerFor,
+// which wires cq.api/cq.fsm by hand and never actually exercises hydrate's
+// own CallbackQuery branch. HandleUpdate is the one path that calls hydrate
+// for real, so this is the only test proving that branch wires the callback
+// query's FSM storage — without it, a handler's FSM reads/writes on a
+// callback query would panic on a nil storage.
+func TestBot_HandleUpdate_HydratesCallbackQueryFSM(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"ok":true,"result":true}`))
+	}))
+	defer server.Close()
+
+	bot := newTestBot(server)
+	r := NewRouter()
+	r.CallbackQuery().Handle(func(c *Ctx) error {
+		return FSMSet(c.FSM(), "clicked", true)
+	})
+	bot.Dispatch(r)
+
+	bot.HandleUpdate(context.Background(), &Update{
+		CallbackQuery: &CallbackQuery{
+			ID:      "1",
+			From:    &User{ID: 1},
+			Data:    "x",
+			Message: &Message{Chat: &Chat{ID: 1}},
+		},
+	})
+
+	key := StorageKey{ChatID: 1, UserID: 1}
+	clicked, ok, err := FSMGet[bool](NewFSMContext(context.Background(), bot.fsmStorage, key), "clicked")
+	if err != nil || !ok || !clicked {
+		t.Errorf("expected hydrate to wire the callback query's FSM storage so the handler's FSMSet persisted; got clicked=%v ok=%v err=%v", clicked, ok, err)
+	}
+}
+
 // Regression test for REVIEW-WORST #4: edited_message used to be parsed and
 // hydrated but never dispatched.
 func TestBot_EditedMessageUpdate_DispatchesToEditedHandlers(t *testing.T) {
@@ -372,6 +407,35 @@ func TestBot_Reply_AsyncDispatch_MakesRealAPICall(t *testing.T) {
 	}
 	if receivedBody["text"] != "async pong" || receivedBody["chat_id"].(float64) != 555 {
 		t.Errorf("server received unexpected sendMessage body: %+v", receivedBody)
+	}
+}
+
+// The fallback real API call in resolveWebhookReply can itself fail (network
+// blip, rate limit, ...) — that failure must reach OnError wrapped as
+// "reply(<method>): ...", the same as any other handler-side error, instead
+// of vanishing silently since the handler itself already returned via the
+// Reply(...) sentinel rather than a normal error.
+func TestBot_Reply_AsyncDispatch_APIFailureReachesErrorHandler(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	bot := newTestBot(server)
+	var capturedErr error
+	bot.OnError(func(err error, c *Ctx) { capturedErr = err })
+
+	r := NewRouter()
+	r.Message().Handle(func(c *Ctx) error {
+		return Reply(&SendMessageRequest{ChatID: ChatIDFromInt(555), Text: "async pong"})
+	})
+	bot.Dispatch(r)
+
+	msg := bindMessage(&Message{Text: "ping", Chat: &Chat{ID: 555}, From: &User{ID: 1}}, bot)
+	runWorkerFor(t, bot, &Update{Message: msg})
+
+	if capturedErr == nil || !strings.Contains(capturedErr.Error(), "reply(sendMessage)") {
+		t.Errorf("expected a wrapped reply(sendMessage) error to reach OnError, got %v", capturedErr)
 	}
 }
 
@@ -685,6 +749,29 @@ func TestBot_StopWorkers_DrainsBufferedUpdatesBeforeReturning(t *testing.T) {
 	defer mu.Unlock()
 	if processed != numUpdates {
 		t.Errorf("processed = %d, want %d (buffered updates were dropped on shutdown)", processed, numUpdates)
+	}
+}
+
+// worker's `for update := range b.updateChan` never sends a nil itself, but
+// the guard exists for whatever reason a nil ends up queued anyway — it must
+// be skipped rather than passed to dispatch, which would panic building a
+// Ctx from a nil *Update.
+func TestBot_Worker_SkipsNilUpdatesWithoutPanicking(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(sendMessageOK))
+	}))
+	defer server.Close()
+
+	bot := newTestBot(server)
+	handlerRan := false
+	r := NewRouter()
+	r.Message().Handle(func(c *Ctx) error { handlerRan = true; return nil })
+	bot.Dispatch(r)
+
+	runWorkerFor(t, bot, nil, &Update{Message: bindMessage(&Message{Text: "hi", Chat: &Chat{ID: 1}, From: &User{ID: 1}}, bot)})
+
+	if !handlerRan {
+		t.Error("expected the worker to skip the nil update and still dispatch the real one that followed it")
 	}
 }
 
@@ -1083,6 +1170,67 @@ func TestBot_Run_RetriesGetUpdatesAfterFailure(t *testing.T) {
 	}
 }
 
+// A 409 mid-poll gets its own log message (distinct from a generic getUpdates
+// error) since it usually means a second bot instance/webhook is fighting
+// this one over the same token — worth telling apart from ordinary network
+// flakiness. The short ctx also forces cancellation to land mid-backoff-wait
+// (pollBackoffMin is 1s), covering that shutdown race in the same run.
+func TestBot_Run_ConflictError_LogsDistinctMessageAndStopsOnCancelDuringBackoff(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusConflict)
+		w.Write([]byte(`{"ok":false,"error_code":409,"description":"Conflict: terminated by other getUpdates request"}`))
+	}))
+	defer server.Close()
+
+	var buf bytes.Buffer
+	bot := newTestBot(server)
+	bot.logger = slog.New(slog.NewTextHandler(&buf, nil))
+	bot.Dispatch(NewRouter())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	if err := bot.Run(ctx); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, "getUpdates conflict") {
+		t.Errorf("expected the conflict-specific log message, got: %s", out)
+	}
+	if !strings.Contains(out, "Context canceled") {
+		t.Errorf("expected Run to stop gracefully once ctx was canceled mid-backoff-wait, got: %s", out)
+	}
+}
+
+// Run enqueues each fetched update into updateChan before advancing offset;
+// if ctx is canceled while that send is still blocked (e.g. the worker pool
+// is momentarily backed up), Run must exit through that specific select case
+// rather than the update silently vanishing into a half-finished loop
+// iteration.
+func TestBot_Run_ContextCanceledWhileEnqueueingUpdate(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"ok":true,"result":[{"update_id":1,"message":{"message_id":1,"date":1700000000,"chat":{"id":1,"type":"private"},"text":"hi"}}]}`))
+	}))
+	defer server.Close()
+
+	var buf bytes.Buffer
+	bot := newTestBot(server)
+	bot.logger = slog.New(slog.NewTextHandler(&buf, nil))
+	bot.numWorkers = 0                  // nothing drains updateChan
+	bot.updateChan = make(chan *Update) // unbuffered: the first update blocks the send
+	bot.Dispatch(NewRouter())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	if err := bot.Run(ctx); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !strings.Contains(buf.String(), "Context canceled while queueing update") {
+		t.Errorf("expected the queueing-specific cancellation message, got: %s", buf.String())
+	}
+}
+
 func TestIsConflict(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusConflict)
@@ -1141,6 +1289,64 @@ func TestBot_WithDropPendingUpdates_FastForwardsOffset(t *testing.T) {
 	}
 	if gotOffsets[1] != 101 {
 		t.Errorf("second getUpdates offset = %d, want 101 (past the stale update_id 100)", gotOffsets[1])
+	}
+}
+
+// A dropPendingUpdates probe that finds nothing to skip past (no stale
+// updates queued) must leave Run polling from offset 0, same as if
+// WithDropPendingUpdates had never been set — not from some stale/undefined
+// offset left over from the empty response.
+func TestBot_WithDropPendingUpdates_NoStaleUpdates_StartsFromZero(t *testing.T) {
+	var gotOffsets []int64
+	var mu sync.Mutex
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		json.NewDecoder(r.Body).Decode(&body)
+		mu.Lock()
+		gotOffsets = append(gotOffsets, int64(body["offset"].(float64)))
+		mu.Unlock()
+		w.Write([]byte(`{"ok":true,"result":[]}`)) // always empty: nothing stale to skip
+	}))
+	defer server.Close()
+
+	bot := newTestBot(server)
+	bot.dropPendingUpdates = true
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	if err := bot.Run(ctx); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(gotOffsets) < 2 {
+		t.Fatalf("expected at least 2 getUpdates calls (drop-pending probe + real poll), got %d", len(gotOffsets))
+	}
+	if gotOffsets[0] != -1 {
+		t.Errorf("first getUpdates offset = %d, want -1 (drop-pending probe)", gotOffsets[0])
+	}
+	if gotOffsets[1] != 0 {
+		t.Errorf("second getUpdates offset = %d, want 0 (no stale updates to skip past)", gotOffsets[1])
+	}
+}
+
+// The drop-pending probe is itself a getUpdates call and can fail like any
+// other — Run must surface that failure instead of silently falling back to
+// offset 0 and polling as if nothing were configured.
+func TestBot_Run_DropPendingUpdatesError_AbortsRun(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	bot := newTestBot(server)
+	bot.dropPendingUpdates = true
+	bot.Dispatch(NewRouter())
+
+	err := bot.Run(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "drop pending updates") {
+		t.Errorf("Run() error = %v, want it to wrap the drop-pending-updates failure", err)
 	}
 }
 
@@ -1313,6 +1519,33 @@ func TestBot_HandleUpdate_ErrorReachesErrorHandlerAndRecordsHealth(t *testing.T)
 	}
 	if got := bot.healthMonitor.GetStatus().ErrorsCount; got != 1 {
 		t.Errorf("ErrorsCount = %d, want 1", got)
+	}
+}
+
+// Every other error-handling test sets OnError, which only exercises
+// handleError's custom-handler branch. A bot that never calls OnError must
+// still fall back to logging the error itself instead of swallowing it.
+func TestBot_HandleError_NoErrorHandlerLogsDefault(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(sendMessageOK))
+	}))
+	defer server.Close()
+
+	var buf bytes.Buffer
+	bot := newTestBot(server)
+	bot.logger = slog.New(slog.NewTextHandler(&buf, nil))
+	// No bot.OnError(...) — exercises handleError's default-logging fallback.
+
+	r := NewRouter()
+	r.Message().Handle(func(c *Ctx) error { return errTestHandler })
+	bot.Dispatch(r)
+
+	bot.HandleUpdate(context.Background(), &Update{
+		Message: &Message{Text: "hi", Chat: &Chat{ID: 1}, From: &User{ID: 1}},
+	})
+
+	if !strings.Contains(buf.String(), "Error in handler") {
+		t.Errorf("expected the default error-handler fallback to log the error, got: %s", buf.String())
 	}
 }
 

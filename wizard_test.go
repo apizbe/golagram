@@ -2,6 +2,7 @@ package golagram
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -404,6 +405,158 @@ func TestWizard_CancelAndExit_WorkFromPlainHandler(t *testing.T) {
 	}
 	if state, _ := bot.fsmStorage.GetState(context.Background(), key); state != NoState {
 		t.Errorf("state = %q, want NoState after Cancel", state)
+	}
+}
+
+// setStateFailsStorage lets Clear/GetState/GetData/etc. succeed normally
+// (delegated to a real MemoryStorage) while SetState always fails — isolates
+// Enter's SetState-error return from its separate Clear-error return.
+type setStateFailsStorage struct{ *MemoryStorage }
+
+func (setStateFailsStorage) SetState(context.Context, StorageKey, State) error {
+	return errFSMDown
+}
+
+func TestWizard_State_PanicsOutOfRange(t *testing.T) {
+	w := NewWizard("reg")
+	w.Step(func(wc *WizardCtx) error { return nil })
+
+	for _, i := range []int{-1, 1, 99} {
+		func() {
+			defer func() {
+				r := recover()
+				if r == nil {
+					t.Errorf("State(%d): expected a panic, got none", i)
+					return
+				}
+				msg, ok := r.(string)
+				if !ok || !strings.Contains(msg, "out of range") {
+					t.Errorf("State(%d) panic = %v, want it to mention 'out of range'", i, r)
+				}
+			}()
+			w.State(i)
+		}()
+	}
+}
+
+func TestWizard_Enter_NoStepsRegistered_ReturnsError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer server.Close()
+	bot := newTestBot(server)
+
+	w := NewWizard("reg") // no Step() calls
+	c := newCtx(context.Background(), &Update{Message: &Message{Chat: &Chat{ID: 1}, From: &User{ID: 1}}},
+		bot, nil, bot.fsmStorage, "test_bot")
+
+	err := w.Enter(c)
+	if err == nil || !strings.Contains(err.Error(), "no steps registered") {
+		t.Errorf("Enter() error = %v, want it to mention no steps registered", err)
+	}
+}
+
+func TestWizard_Enter_WithoutOnEnter_SetsStateAndReturnsNil(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer server.Close()
+	bot := newTestBot(server)
+
+	w := NewWizard("reg") // no WithOnEnter
+	w.Step(func(wc *WizardCtx) error { return nil })
+
+	key := StorageKey{ChatID: 1, UserID: 1}
+	c := newCtx(context.Background(), &Update{Message: &Message{Chat: &Chat{ID: 1}, From: &User{ID: 1}}},
+		bot, nil, bot.fsmStorage, "test_bot")
+
+	if err := w.Enter(c); err != nil {
+		t.Fatalf("Enter() error = %v, want nil (no OnEnter hook set)", err)
+	}
+	state, _ := bot.fsmStorage.GetState(context.Background(), key)
+	if state != w.State(0) {
+		t.Errorf("state = %q, want step 0 (%q)", state, w.State(0))
+	}
+}
+
+func TestWizard_Exit_WithoutOnExit_ReturnsNil(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer server.Close()
+	bot := newTestBot(server)
+
+	w := NewWizard("reg") // no WithOnExit
+	w.Step(func(wc *WizardCtx) error { return nil })
+
+	key := StorageKey{ChatID: 1, UserID: 1}
+	if err := bot.fsmStorage.SetState(context.Background(), key, w.State(0)); err != nil {
+		t.Fatalf("SetState: %v", err)
+	}
+	c := newCtx(context.Background(), &Update{Message: &Message{Chat: &Chat{ID: 1}, From: &User{ID: 1}}},
+		bot, nil, bot.fsmStorage, "test_bot")
+
+	if err := w.Exit(c); err != nil {
+		t.Errorf("Exit() error = %v, want nil (no OnExit hook set)", err)
+	}
+	if state, _ := bot.fsmStorage.GetState(context.Background(), key); state != NoState {
+		t.Errorf("state after Exit = %q, want NoState", state)
+	}
+}
+
+func TestWizard_Cancel_WithoutAnyHook_ReturnsNil(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer server.Close()
+	bot := newTestBot(server)
+
+	w := NewWizard("reg") // no WithOnCancel, no WithOnExit
+	w.Step(func(wc *WizardCtx) error { return nil })
+
+	key := StorageKey{ChatID: 1, UserID: 1}
+	if err := bot.fsmStorage.SetState(context.Background(), key, w.State(0)); err != nil {
+		t.Fatalf("SetState: %v", err)
+	}
+	c := newCtx(context.Background(), &Update{Message: &Message{Chat: &Chat{ID: 1}, From: &User{ID: 1}}},
+		bot, nil, bot.fsmStorage, "test_bot")
+
+	if err := w.Cancel(c); err != nil {
+		t.Errorf("Cancel() error = %v, want nil (no hooks set)", err)
+	}
+	if state, _ := bot.fsmStorage.GetState(context.Background(), key); state != NoState {
+		t.Errorf("state after Cancel = %q, want NoState", state)
+	}
+}
+
+func TestWizard_EnterExitCancel_PropagateFSMClearError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer server.Close()
+	bot := newTestBot(server)
+
+	w := NewWizard("reg")
+	w.Step(func(wc *WizardCtx) error { return nil })
+
+	c := newCtx(context.Background(), &Update{Message: &Message{Chat: &Chat{ID: 1}, From: &User{ID: 1}}},
+		bot, nil, erroringFSMStorage{}, "test_bot")
+
+	if err := w.Enter(c); !errors.Is(err, errFSMDown) {
+		t.Errorf("Enter() error = %v, want it to wrap errFSMDown", err)
+	}
+	if err := w.Exit(c); !errors.Is(err, errFSMDown) {
+		t.Errorf("Exit() error = %v, want it to wrap errFSMDown", err)
+	}
+	if err := w.Cancel(c); !errors.Is(err, errFSMDown) {
+		t.Errorf("Cancel() error = %v, want it to wrap errFSMDown", err)
+	}
+}
+
+func TestWizard_Enter_PropagatesSetStateError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer server.Close()
+	bot := newTestBot(server)
+
+	w := NewWizard("reg")
+	w.Step(func(wc *WizardCtx) error { return nil })
+
+	c := newCtx(context.Background(), &Update{Message: &Message{Chat: &Chat{ID: 1}, From: &User{ID: 1}}},
+		bot, nil, setStateFailsStorage{NewMemoryStorage()}, "test_bot")
+
+	err := w.Enter(c)
+	if !errors.Is(err, errFSMDown) {
+		t.Errorf("Enter() error = %v, want it to wrap errFSMDown (SetState failure)", err)
 	}
 }
 
