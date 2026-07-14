@@ -13,7 +13,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
+          go-version: "1.26.5"
 
       - name: Build
         run: go build ./...
@@ -61,7 +61,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
+          go-version: "1.26.5"
 
       - name: golangci-lint
         run: |
@@ -75,7 +75,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
+          go-version: "1.26.5"
 
       - name: govulncheck
         run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
@@ -96,7 +96,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.24"
+          go-version: "1.26.5"
 
       - name: Build
         run: go build ./...
@@ -128,7 +128,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
+          go-version: "1.26.5"
 
       # types.gen.go/methods.gen.go must always be what scripts/api.json
       # produces — this catches a hand-edit to a generated file, or
