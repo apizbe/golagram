@@ -33,6 +33,12 @@ func renderTypesFile(apiVersion string, items []Item) string {
 	b.WriteString("func (c ChatID) MarshalJSON() ([]byte, error) {\n")
 	b.WriteString("\tif c.username != \"\" {\n\t\treturn json.Marshal(\"@\" + c.username)\n\t}\n")
 	b.WriteString("\treturn json.Marshal(c.id)\n}\n\n")
+	b.WriteString("// IsZero reports whether c is the zero value (neither constructor called) —\n")
+	b.WriteString("// used by encoding/json's `omitzero` tag on optional ChatID fields, since the\n")
+	b.WriteString("// zero value's MarshalJSON output (0) is a real, rejectable chat_id rather\n")
+	b.WriteString("// than something Telegram treats as absent, unlike `omitempty` (never true\n")
+	b.WriteString("// for a non-pointer struct, whatever its contents).\n")
+	b.WriteString("func (c ChatID) IsZero() bool { return c.id == 0 && c.username == \"\" }\n\n")
 
 	for _, kv := range aliasEntries() {
 		alias, orig := kv[0], kv[1]
@@ -348,7 +354,7 @@ func renderMethod(b *strings.Builder, it Item, typeAndUnionNames []string) strin
 		fmt.Fprintf(b, "\t%s, err := b.api.Call(ctx, %q, nil)\n", rawVar, it.Name)
 	}
 	b.WriteString("\tif err != nil {\n")
-	fmt.Fprintf(b, "\t\treturn %s, err\n\t}\n", zeroValue(returnType, kind))
+	fmt.Fprintf(b, "\t\treturn %s, err\n\t}\n", zeroValue(kind))
 
 	switch kind {
 	case "bool":
@@ -358,7 +364,7 @@ func renderMethod(b *strings.Builder, it Item, typeAndUnionNames []string) strin
 	case "array", "int", "string":
 		fmt.Fprintf(b, "\tvar result %s\n", returnType)
 		b.WriteString("\tif err := json.Unmarshal(raw, &result); err != nil {\n")
-		fmt.Fprintf(b, "\t\treturn %s, fmt.Errorf(\"%s: failed to decode result: %%w\", err)\n\t}\n", zeroValue(returnType, kind), it.Name)
+		fmt.Fprintf(b, "\t\treturn %s, fmt.Errorf(\"%s: failed to decode result: %%w\", err)\n\t}\n", zeroValue(kind), it.Name)
 		if returnType == "[]Message" {
 			b.WriteString("\tfor i := range result {\n\t\tb.bindMessage(ctx, &result[i])\n\t}\n")
 		}
@@ -401,7 +407,7 @@ func renderMethod(b *strings.Builder, it Item, typeAndUnionNames []string) strin
 
 // zeroValue returns the literal a generated method returns alongside a
 // non-nil error, for the given parseReturnType kind.
-func zeroValue(goType, kind string) string {
+func zeroValue(kind string) string {
 	switch kind {
 	case "bool":
 		return "false"

@@ -134,7 +134,18 @@ func fieldTypeAndTag(structName, apiType, jsonName, description string, optional
 	}
 	jsonTag = jsonName
 	if optional {
-		jsonTag += ",omitempty"
+		if goType == "ChatID" {
+			// omitzero (not omitempty): ChatID's zero value marshals as the
+			// literal integer 0 via MarshalJSON, and Telegram treats chat_id:0
+			// as a real, rejectable target rather than "absent" — unlike
+			// InputFile below, this isn't cosmetic. omitzero uses ChatID's
+			// IsZero() method (see render.go's generated preamble) so an unset
+			// optional ChatID field (e.g. ReplyParameters.ChatID, meaning
+			// "reply in the current chat") is actually omitted.
+			jsonTag += ",omitzero"
+		} else {
+			jsonTag += ",omitempty"
+		}
 	}
 	if optional && goType == "bool" && defaultsTrueRe.MatchString(description) {
 		return "*bool", jsonTag
@@ -158,7 +169,8 @@ func fieldTypeAndTag(structName, apiType, jsonName, description string, optional
 		// functional gap — Telegram treats an empty optional string param
 		// the same as an absent one. The multipart path (see
 		// internal/api/client.go: callMultipart) special-cases InputFile
-		// directly and skips it correctly regardless.
+		// directly and skips it correctly regardless. ChatID gets its own
+		// tag rule above instead — its zero-value degradation isn't cosmetic.
 	case goType == "ReplyMarkup" || unionGoNames[goType]:
 	default:
 		goType = "*" + goType

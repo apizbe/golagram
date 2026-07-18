@@ -3227,7 +3227,7 @@ type SendGiftRequest struct {
 	// Required if chat_id is not specified. Unique identifier of the target user who will receive the gift.
 	UserID int64 `json:"user_id,omitempty"`
 	// Required if user_id is not specified. Unique identifier for the chat or username of the channel (in the format @username) that will receive the gift.
-	ChatID ChatID `json:"chat_id,omitempty"`
+	ChatID ChatID `json:"chat_id,omitzero"`
 	// Pass True to pay for the gift upgrade from the bot's balance, thereby making the upgrade free for the receiver
 	PayForUpgrade bool `json:"pay_for_upgrade,omitempty"`
 	// Text that will be shown along with the gift; 0-128 characters
@@ -4036,7 +4036,7 @@ type EditMessageTextRequest struct {
 	// Unique identifier of the business connection on behalf of which the message to be edited was sent
 	BusinessConnectionID string `json:"business_connection_id,omitempty"`
 	// Required if inline_message_id is not specified. Unique identifier for the target chat or username of the target bot, supergroup or channel in the format @username.
-	ChatID ChatID `json:"chat_id,omitempty"`
+	ChatID ChatID `json:"chat_id,omitzero"`
 	// Required if inline_message_id is not specified. Identifier of the message to edit.
 	MessageID int64 `json:"message_id,omitempty"`
 	// Required if chat_id and message_id are not specified. Identifier of the inline message.
@@ -4081,7 +4081,7 @@ type EditMessageCaptionRequest struct {
 	// Unique identifier of the business connection on behalf of which the message to be edited was sent
 	BusinessConnectionID string `json:"business_connection_id,omitempty"`
 	// Required if inline_message_id is not specified. Unique identifier for the target chat or username of the target bot, supergroup or channel in the format @username.
-	ChatID ChatID `json:"chat_id,omitempty"`
+	ChatID ChatID `json:"chat_id,omitzero"`
 	// Required if inline_message_id is not specified. Identifier of the message to edit.
 	MessageID int64 `json:"message_id,omitempty"`
 	// Required if chat_id and message_id are not specified. Identifier of the inline message.
@@ -4126,7 +4126,7 @@ type EditMessageMediaRequest struct {
 	// Unique identifier of the business connection on behalf of which the message to be edited was sent
 	BusinessConnectionID string `json:"business_connection_id,omitempty"`
 	// Required if inline_message_id is not specified. Unique identifier for the target chat or username of the target bot, supergroup or channel in the format @username.
-	ChatID ChatID `json:"chat_id,omitempty"`
+	ChatID ChatID `json:"chat_id,omitzero"`
 	// Required if inline_message_id is not specified. Identifier of the message to edit.
 	MessageID int64 `json:"message_id,omitempty"`
 	// Required if chat_id and message_id are not specified. Identifier of the inline message.
@@ -4165,7 +4165,7 @@ type EditMessageLiveLocationRequest struct {
 	// Unique identifier of the business connection on behalf of which the message to be edited was sent
 	BusinessConnectionID string `json:"business_connection_id,omitempty"`
 	// Required if inline_message_id is not specified. Unique identifier for the target chat or username of the target bot, supergroup or channel in the format @username.
-	ChatID ChatID `json:"chat_id,omitempty"`
+	ChatID ChatID `json:"chat_id,omitzero"`
 	// Required if inline_message_id is not specified. Identifier of the message to edit.
 	MessageID int64 `json:"message_id,omitempty"`
 	// Required if chat_id and message_id are not specified. Identifier of the inline message.
@@ -4208,7 +4208,7 @@ type StopMessageLiveLocationRequest struct {
 	// Unique identifier of the business connection on behalf of which the message to be edited was sent
 	BusinessConnectionID string `json:"business_connection_id,omitempty"`
 	// Required if inline_message_id is not specified. Unique identifier for the target chat or username of the target bot, supergroup or channel in the format @username.
-	ChatID ChatID `json:"chat_id,omitempty"`
+	ChatID ChatID `json:"chat_id,omitzero"`
 	// Required if inline_message_id is not specified. Identifier of the message with live location to stop.
 	MessageID int64 `json:"message_id,omitempty"`
 	// Required if chat_id and message_id are not specified. Identifier of the inline message.
@@ -4278,7 +4278,7 @@ type EditMessageReplyMarkupRequest struct {
 	// Unique identifier of the business connection on behalf of which the message to be edited was sent
 	BusinessConnectionID string `json:"business_connection_id,omitempty"`
 	// Required if inline_message_id is not specified. Unique identifier for the target chat or username of the target bot, supergroup or channel in the format @username.
-	ChatID ChatID `json:"chat_id,omitempty"`
+	ChatID ChatID `json:"chat_id,omitzero"`
 	// Required if inline_message_id is not specified. Identifier of the message to edit.
 	MessageID int64 `json:"message_id,omitempty"`
 	// Required if chat_id and message_id are not specified. Identifier of the inline message.

@@ -37,6 +37,13 @@ func (c ChatID) MarshalJSON() ([]byte, error) {
 	return json.Marshal(c.id)
 }
 
+// IsZero reports whether c is the zero value (neither constructor called) —
+// used by encoding/json's `omitzero` tag on optional ChatID fields, since the
+// zero value's MarshalJSON output (0) is a real, rejectable chat_id rather
+// than something Telegram treats as absent, unlike `omitempty` (never true
+// for a non-pointer struct, whatever its contents).
+func (c ChatID) IsZero() bool { return c.id == 0 && c.username == "" }
+
 // MaybeInaccessibleMessage is the Bot API's name for Message (see internal/gen/mapping.go:
 // aliasedTypes for why it is flattened rather than modeled separately).
 type MaybeInaccessibleMessage = Message
