@@ -10,9 +10,8 @@ type Task struct {
 }
 
 // Store holds every user's tasks in memory. A real bot would swap this for
-// a database or a JSON file (see golagram-test/internal/store for that
-// shape) — the handlers below only ever talk to this interface-shaped
-// struct, so nothing else would need to change.
+// a database or a JSON file — the handlers below only ever talk to this
+// interface-shaped struct, so nothing else would need to change.
 type Store struct {
 	mu     sync.Mutex
 	tasks  map[int64][]Task

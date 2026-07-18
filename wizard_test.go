@@ -383,8 +383,9 @@ func TestWizard_CancelAndExit_WorkFromPlainHandler(t *testing.T) {
 	w := NewWizard("reg", WithOnCancel(func(c *Ctx) error { canceled = true; return nil }))
 	w.Step(func(wc *WizardCtx) error { return nil })
 
-	// Mirrors Do'kon's cancelCheckoutCb: a callback-query handler outside
-	// any wizard step, calling Wizard.Cancel directly on a plain *Ctx.
+	// A callback-query handler outside any wizard step, calling
+	// Wizard.Cancel directly on a plain *Ctx — e.g. an inline "Cancel"
+	// button shown alongside a wizard step's own prompt.
 	r := NewRouter()
 	r.Include(w.Router())
 	r.CallbackQuery(FilterCallbackData("cancel_btn")).Handle(func(c *Ctx) error {
