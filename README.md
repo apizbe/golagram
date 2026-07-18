@@ -220,19 +220,17 @@ with `go generate ./...` when Telegram ships new API surface; see
 **Can I point it at a self-hosted Bot API server?** Yes —
 `gg.WithBaseURL("http://localhost:8081")`.
 
-**Is it safe to use in production today?** It's pre-v1.0 (see Versioning
-below): functional and tested, but the API can still shift between minor
-releases. Pin your version and read the changelog on bumps until v1.0
-ships.
+**Is it safe to use in production today?** Yes — v1.0.0 has shipped (see
+Versioning below): the public API is stable and 1.x stays backward
+compatible.
 
 ## Versioning
 
-**Pre-v1: the API may still shift between minor versions — pin your
-version.** golagram follows [SemVer](https://semver.org/); once v1.0.0
-ships, 1.x stays backward compatible, and new Bot API releases (additive by
-nature) always land as minor bumps. A version exists once a pushed git tag
-matches `version.go` — [CI](.github/workflows/release.yml) refuses to
-release when they disagree.
+golagram follows [SemVer](https://semver.org/) and has shipped **v1.0.0** —
+the public API is stable, and 1.x stays backward compatible from here. New
+Bot API releases (additive by nature) land as minor bumps; breaking changes
+wait for v2. A version exists once a pushed git tag matches `version.go` —
+[CI](.github/workflows/release.yml) refuses to release when they disagree.
 
 ## Getting help
 
