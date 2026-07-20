@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/apizbe/golagram/internal/api"
 )
@@ -282,6 +283,60 @@ func (c *Ctx) EditText(text string, options ...*EditMessageOptions) (*Message, e
 	return nil, fmt.Errorf("Ctx.EditText: this update has no message to edit")
 }
 
+// EditOrSend edits the update's message like [Ctx.EditText], but if the
+// edit target is gone or off-limits (see [IsMessageNotEditable] — deleted,
+// too old, or an inaccessible callback message) it sends the text as a
+// fresh message into the same chat instead. The pattern for menus that must
+// survive their message being deleted: the handler doesn't care which
+// happened, the user sees the new content either way. Any other error
+// (including "message is not modified") is returned as-is.
+func (c *Ctx) EditOrSend(text string, options ...*EditMessageOptions) (*Message, error) {
+	m := c.anyMessage()
+	if m == nil {
+		return nil, fmt.Errorf("Ctx.EditOrSend: this update has no message to edit or chat to send into")
+	}
+	edited, err := m.EditText(text, options...)
+	if !IsMessageNotEditable(err) {
+		return edited, err
+	}
+	return m.Answer(text, editOptionsToSend(options))
+}
+
+// EditOrReply is [Ctx.EditOrSend] with the fallback sent as a reply to the
+// update's message (like [Ctx.Reply]) instead of a plain send.
+func (c *Ctx) EditOrReply(text string, options ...*EditMessageOptions) (*Message, error) {
+	m := c.anyMessage()
+	if m == nil {
+		return nil, fmt.Errorf("Ctx.EditOrReply: this update has no message to edit or reply to")
+	}
+	edited, err := m.EditText(text, options...)
+	if !IsMessageNotEditable(err) {
+		return edited, err
+	}
+	return m.Reply(text, editOptionsToSend(options))
+}
+
+// editOptionsToSend carries an edit's options over to the fallback send:
+// every EditMessageOptions field has a SendMessageOptions equivalent.
+func editOptionsToSend(options []*EditMessageOptions) *SendMessageOptions {
+	if len(options) == 0 || options[0] == nil {
+		return &SendMessageOptions{}
+	}
+	o := options[0]
+	so := &SendMessageOptions{
+		ParseMode:            o.ParseMode,
+		Entities:             o.Entities,
+		LinkPreviewOptions:   o.LinkPreviewOptions,
+		BusinessConnectionID: o.BusinessConnectionID,
+	}
+	// Only assign a non-nil keyboard: a typed nil in the ReplyMarkup
+	// interface would serialize as "reply_markup": null.
+	if o.ReplyMarkup != nil {
+		so.ReplyMarkup = o.ReplyMarkup
+	}
+	return so
+}
+
 // EditReplyMarkup edits only the inline keyboard of whichever message-shaped
 // payload this update carries (or a callback query's attached message).
 // Returns an error if the update carries neither.
@@ -310,6 +365,23 @@ func (c *Ctx) Delete() error {
 		return m.Delete()
 	}
 	return fmt.Errorf("Ctx.Delete: this update has no message to delete")
+}
+
+// DeleteAfter schedules deletion of whichever message-shaped payload this
+// update carries (or a callback query's attached message) d from now — see
+// [Message.DeleteAfter] for the semantics (best-effort, logged not
+// returned, canceled by bot shutdown, Stop the timer to call it off).
+// Returns an error only if the update carries no message to delete; the
+// most common use deletes a *sent* message instead, via the Message
+// returned by [Ctx.Answer]:
+//
+//	m, _ := c.Answer("Saved ✅")
+//	m.DeleteAfter(5 * time.Second)
+func (c *Ctx) DeleteAfter(d time.Duration) (*time.Timer, error) {
+	if m := c.anyMessage(); m != nil {
+		return m.DeleteAfter(d), nil
+	}
+	return nil, fmt.Errorf("Ctx.DeleteAfter: this update has no message to delete")
 }
 
 // SendChatAction broadcasts a chat action (e.g. "typing") into whichever
