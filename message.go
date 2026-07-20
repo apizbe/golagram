@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
+	"time"
 
 	"github.com/apizbe/golagram/internal/api"
 )
@@ -68,7 +70,7 @@ func (e *Message) applyDefaults(req *SendMessageRequest) {
 // sendMessage is the one code path every outgoing sendMessage call takes:
 // pre-flight validation, the API call, and decoding + re-binding the sent
 // message so callers can keep working with it (edit it, delete it, ...).
-func sendMessage(ctx context.Context, client *api.Client, fsm FSMStorage, strategy FSMKeyStrategy, botUsername string, req *SendMessageRequest) (*Message, error) {
+func sendMessage(ctx context.Context, client *api.Client, fsm FSMStorage, strategy FSMKeyStrategy, botUsername string, logf func(string, ...any), req *SendMessageRequest) (*Message, error) {
 	if err := validateOutgoingText(req.Text); err != nil {
 		return nil, err
 	}
@@ -90,6 +92,7 @@ func sendMessage(ctx context.Context, client *api.Client, fsm FSMStorage, strate
 	sent.fsmStrategy = strategy
 	sent.botUsername = botUsername
 	sent.boundCtx = ctx
+	sent.logf = logf
 	return &sent, nil
 }
 
@@ -110,7 +113,7 @@ func (e *Message) Answer(text string, options ...*SendMessageOptions) (*Message,
 		options[0].applyTo(req)
 	}
 	e.applyDefaults(req)
-	return sendMessage(e.ctx(), e.api, e.fsm, e.fsmStrategy, e.botUsername, req)
+	return sendMessage(e.ctx(), e.api, e.fsm, e.fsmStrategy, e.botUsername, e.logf, req)
 }
 
 // Reply sends a reply to this message and returns the sent message. The
@@ -126,7 +129,7 @@ func (e *Message) Reply(text string, options ...*SendMessageOptions) (*Message, 
 		req.ReplyParameters = &ReplyParameters{MessageID: e.MessageID}
 	}
 	e.applyDefaults(req)
-	return sendMessage(e.ctx(), e.api, e.fsm, e.fsmStrategy, e.botUsername, req)
+	return sendMessage(e.ctx(), e.api, e.fsm, e.fsmStrategy, e.botUsername, e.logf, req)
 }
 
 // EditText edits this message's text (and optionally its inline keyboard)
@@ -158,7 +161,7 @@ func (e *Message) EditText(text string, options ...*EditMessageOptions) (*Messag
 	if err != nil {
 		return nil, err
 	}
-	return decodeEditedMessage(e.ctx(), raw, e.api, e.fsm, e.fsmStrategy, e.botUsername)
+	return decodeEditedMessage(e.ctx(), raw, e.api, e.fsm, e.fsmStrategy, e.botUsername, e.logf)
 }
 
 // EditReplyMarkup edits only this message's inline keyboard and returns the
@@ -177,7 +180,7 @@ func (e *Message) EditReplyMarkup(markup *InlineKeyboardMarkup) (*Message, error
 	if err != nil {
 		return nil, err
 	}
-	return decodeEditedMessage(e.ctx(), raw, e.api, e.fsm, e.fsmStrategy, e.botUsername)
+	return decodeEditedMessage(e.ctx(), raw, e.api, e.fsm, e.fsmStrategy, e.botUsername, e.logf)
 }
 
 // EditCaption edits this media message's caption and returns the edited
@@ -203,14 +206,14 @@ func (e *Message) EditCaption(caption string, options ...*EditCaptionOptions) (*
 	if err != nil {
 		return nil, err
 	}
-	return decodeEditedMessage(e.ctx(), raw, e.api, e.fsm, e.fsmStrategy, e.botUsername)
+	return decodeEditedMessage(e.ctx(), raw, e.api, e.fsm, e.fsmStrategy, e.botUsername, e.logf)
 }
 
 // decodeEditedMessage handles every edit*'s dual return shape: Telegram
 // returns the edited Message normally, but the literal `true` instead when
 // acting on an inline message (inline_message_id, no chat_id/message_id) —
 // there's nothing to decode in that case.
-func decodeEditedMessage(ctx context.Context, raw []byte, client *api.Client, fsm FSMStorage, strategy FSMKeyStrategy, botUsername string) (*Message, error) {
+func decodeEditedMessage(ctx context.Context, raw []byte, client *api.Client, fsm FSMStorage, strategy FSMKeyStrategy, botUsername string, logf func(string, ...any)) (*Message, error) {
 	if bytes.Equal(bytes.TrimSpace(raw), []byte("true")) {
 		return nil, nil
 	}
@@ -223,6 +226,7 @@ func decodeEditedMessage(ctx context.Context, raw []byte, client *api.Client, fs
 	edited.fsmStrategy = strategy
 	edited.botUsername = botUsername
 	edited.boundCtx = ctx
+	edited.logf = logf
 	return &edited, nil
 }
 
@@ -231,6 +235,39 @@ func (e *Message) Delete() error {
 	req := &DeleteMessageRequest{ChatID: ChatIDFromInt(e.ChatID()), MessageID: e.MessageID}
 	_, err := e.api.Call(e.ctx(), "deleteMessage", req)
 	return err
+}
+
+// DeleteAfter schedules this message's deletion d from now — the
+// self-destructing confirmation toast:
+//
+//	m, _ := c.Answer("Saved ✅")
+//	m.DeleteAfter(5 * time.Second)
+//
+// The delete is best-effort: it runs on a timer after the handler has
+// returned, so a failure is logged (via [WithLogger] if configured) rather
+// than returned, and bot shutdown cancels it silently. Stop the returned
+// timer to call it off.
+func (e *Message) DeleteAfter(d time.Duration) *time.Timer {
+	ctx := e.ctx()
+	return time.AfterFunc(d, func() {
+		if ctx.Err() != nil {
+			return
+		}
+		if err := e.Delete(); err != nil {
+			e.logErrorf("DeleteAfter: deleting message %d in chat %d: %v", e.MessageID, e.ChatID(), err)
+		}
+	})
+}
+
+// logErrorf routes sugar-path errors to the owning bot's logger (bound at
+// hydration/send), falling back to the standard library logger for a
+// Message that was never bound to a bot.
+func (e *Message) logErrorf(format string, args ...any) {
+	if e.logf != nil {
+		e.logf(format, args...)
+		return
+	}
+	log.Printf(format, args...)
 }
 
 // SendChatAction broadcasts a chat action (e.g. "typing", "upload_photo")

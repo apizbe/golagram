@@ -77,7 +77,7 @@ func (e *CallbackQuery) SendMessage(text string, options ...*SendMessageOptions)
 	if e.Message != nil {
 		e.Message.applyDefaults(req)
 	}
-	return sendMessage(e.ctx(), e.api, e.fsm, e.fsmStrategy, e.botUsername(), req)
+	return sendMessage(e.ctx(), e.api, e.fsm, e.fsmStrategy, e.botUsername(), e.logf, req)
 }
 
 // Reply replies to the message the callback was attached to and returns the
@@ -93,7 +93,7 @@ func (e *CallbackQuery) Reply(text string, options ...*SendMessageOptions) (*Mes
 		}
 		e.Message.applyDefaults(req)
 	}
-	return sendMessage(e.ctx(), e.api, e.fsm, e.fsmStrategy, e.botUsername(), req)
+	return sendMessage(e.ctx(), e.api, e.fsm, e.fsmStrategy, e.botUsername(), e.logf, req)
 }
 
 func (e *CallbackQuery) botUsername() string {

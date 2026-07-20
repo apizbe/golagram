@@ -41,6 +41,7 @@ var extraStructFields = map[string][]string{
 		"fsmStrategy FSMKeyStrategy",
 		"botUsername string",
 		"boundCtx context.Context",
+		"logf func(format string, args ...any)",
 	},
 	"CallbackQuery": {
 		"api *api.Client",
@@ -48,6 +49,7 @@ var extraStructFields = map[string][]string{
 		"fsmStrategy FSMKeyStrategy",
 		"boundCtx context.Context",
 		"answered bool",
+		"logf func(format string, args ...any)",
 	},
 }
 

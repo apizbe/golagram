@@ -277,6 +277,7 @@ type Message struct {
 	fsmStrategy FSMKeyStrategy
 	botUsername string
 	boundCtx    context.Context
+	logf        func(format string, args ...any)
 
 	// Unique message identifier inside this chat. In specific instances (e.g., message containing a video sent to a big chat), the server might automatically schedule a message instead of sending it immediately. In such cases, this field will be 0 and the relevant message will be unusable until it is actually sent.
 	MessageID int64 `json:"message_id"`
@@ -1969,6 +1970,7 @@ type CallbackQuery struct {
 	fsmStrategy FSMKeyStrategy
 	boundCtx    context.Context
 	answered    bool
+	logf        func(format string, args ...any)
 
 	// Unique identifier for this query
 	ID string `json:"id"`

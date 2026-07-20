@@ -475,6 +475,7 @@ func (b *TelegramBot) bindMessage(ctx context.Context, m *Message) {
 	m.fsm = b.fsmStorage
 	m.fsmStrategy = b.fsmStrategy
 	m.boundCtx = ctx
+	m.logf = b.logErrorf
 	if b.me != nil {
 		m.botUsername = b.me.Username
 	}
@@ -639,6 +640,7 @@ func (b *TelegramBot) hydrate(u *Update) {
 		cq.fsm = b.fsmStorage
 		cq.fsmStrategy = b.fsmStrategy
 		cq.boundCtx = b.runCtx()
+		cq.logf = b.logErrorf
 		b.hydrateMessage(cq.Message)
 	}
 }
