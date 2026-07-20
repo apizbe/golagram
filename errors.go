@@ -45,6 +45,20 @@ func IsChatNotFound(err error) bool {
 		strings.Contains(apiErr.Description, "chat not found")
 }
 
+// IsMessageNotEditable reports whether err means the edit target is gone or
+// off-limits: Telegram's "message to edit not found" (deleted, or never
+// existed) and "message can't be edited" (too old, someone else's message,
+// or an inaccessible callback message). [Ctx.EditOrSend]/[Ctx.EditOrReply]
+// fall back to sending a fresh message exactly when this is true. Note
+// "message is not modified" is deliberately not included — the message is
+// alive and already shows this content, so sending fresh would duplicate it.
+func IsMessageNotEditable(err error) bool {
+	apiErr, ok := AsAPIError(err)
+	return ok && apiErr.Code == 400 &&
+		(strings.Contains(apiErr.Description, "message to edit not found") ||
+			strings.Contains(apiErr.Description, "message can't be edited"))
+}
+
 // IsConflict reports whether err is Telegram's 409 Conflict — another
 // getUpdates long-poll (or a webhook) is already active for this bot token.
 // [TelegramBot.Run] logs this distinctly from a generic getUpdates
