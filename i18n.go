@@ -25,6 +25,8 @@ type Translator interface {
 // PluralCategory is a CLDR plural class a PluralRule maps a number to.
 type PluralCategory string
 
+// The CLDR plural categories golagram's built-in rules use. English needs
+// only One/Other; Slavic languages add Few/Many.
 const (
 	PluralOne   PluralCategory = "one"
 	PluralFew   PluralCategory = "few"

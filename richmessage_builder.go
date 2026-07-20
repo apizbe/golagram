@@ -286,7 +286,9 @@ type RichBlockAuthoredMedia struct {
 	Caption *RichBlockCaption
 }
 
-func (*RichBlockAuthoredMedia) isRichBlock()      {}
+func (*RichBlockAuthoredMedia) isRichBlock() {}
+
+// GetType returns the block's rich-message type tag (e.g. "authored_photo").
 func (v *RichBlockAuthoredMedia) GetType() string { return "authored_" + v.tag }
 
 // RichPhoto originates a new photo by URL (<img src="...">). See

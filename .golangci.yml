@@ -2,6 +2,15 @@ version: "2"
 
 linters:
   default: standard
+  enable:
+    # revive's exported rule makes doc comments on exported identifiers a
+    # CI-failing invariant (like telego does) — the 2026-07-10 doc-comment
+    # pass stays enforced instead of being a one-time snapshot.
+    - revive
+  settings:
+    revive:
+      rules:
+        - name: exported
   exclusions:
     rules:
       # Tests (and fsmtest, a *testing.T-based conformance harness that isn't
