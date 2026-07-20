@@ -26,6 +26,11 @@ func (wc *WizardCtx) Next() error {
 
 // Back returns to the step before the current one. A no-op on the first
 // step — there's nowhere to go back to.
+//
+// FSM data set by the step being backed out of is kept, not rolled back
+// (matching telegraf's WizardScene.back): a re-run step that sets the same
+// key simply overwrites the earlier answer, and [Wizard.Exit]/[Wizard.Cancel]
+// clear everything at the end regardless.
 func (wc *WizardCtx) Back() error {
 	if wc.stepIndex == 0 {
 		return nil
