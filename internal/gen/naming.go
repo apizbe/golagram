@@ -4,7 +4,7 @@ import "strings"
 
 // typeNameFixes corrects the handful of Bot API type names whose scraped
 // spelling isn't idiomatic Go (verified exhaustively against api.json: these
-// are the only three names containing "Id" or "Url" as of API 10.1).
+// are the only three names containing "Id" or "Url" as of API 10.2).
 var typeNameFixes = map[string]string{
 	"LoginUrl":    "LoginURL",
 	"MessageId":   "MessageID",

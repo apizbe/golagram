@@ -10,7 +10,7 @@ import (
 //
 // Update carries dispatch semantics (which pointer is non-nil is the routing
 // key) and is small enough to audit by hand — it is verified complete against
-// the spec (26/26 fields as of 10.1).
+// the spec (27/27 fields as of 10.2).
 //
 // Message, CallbackQuery, and MessageEntity used to be here too; they are
 // generated now (with unexported binding fields injected via
@@ -101,6 +101,10 @@ var mediaFileFieldFixups = map[string]bool{
 	"InputMediaLivePhoto.media": true,
 	"InputMediaLivePhoto.photo": true,
 	"InputSticker.sticker":      true,
+	// InputMediaVoiceNote (10.2) has the identical file_id/URL/attach://
+	// prose as its four InputMedia siblings above but isn't spelled
+	// "InputFile or String" in the spec table either — same quirk, same fix.
+	"InputMediaVoiceNote.media": true,
 }
 
 // fieldTypeAndTag resolves a field/param's Go type and decides whether it
@@ -173,7 +177,7 @@ func fieldTypeAndTag(structName, apiType, jsonName, description string, optional
 		// internal/api/client.go: callMultipart) special-cases InputFile
 		// directly and skips it correctly regardless. ChatID gets its own
 		// tag rule above instead — its zero-value degradation isn't cosmetic.
-	case goType == "ReplyMarkup" || unionGoNames[goType]:
+	case goType == "ReplyMarkup" || goType == "InputRichMessageMediaSource" || unionGoNames[goType]:
 	default:
 		goType = "*" + goType
 	}
@@ -189,6 +193,17 @@ var defaultsTrueRe = regexp.MustCompile(`(?i)defaults to true`)
 // appears as a formal `kind: "union"` item — it only shows up as inline "or"
 // text on `reply_markup` params — so it's matched by exact string instead.
 const replyMarkupUnionText = "InlineKeyboardMarkup or ReplyKeyboardMarkup or ReplyKeyboardRemove or ForceReply"
+
+// inputRichMessageMediaSourceText is InputRichMessageMedia.media's (10.2)
+// inline "or" type text — the same shape as replyMarkupUnionText, and
+// handled the same way: a hand-written marker interface
+// (InputRichMessageMediaSource, in input_rich_message_media.go) rather than
+// a formal union, since it's not a `kind: "union"` spec item. Unlike
+// compoundArrayElementFixups below, this can't be approximated by reusing
+// InputMedia — InputMediaVoiceNote (one of the 5 listed here) isn't an
+// InputMedia member, so aliasing to InputMedia would make voice notes
+// impossible to embed via this field, not just permit a couple of extras.
+const inputRichMessageMediaSourceText = "InputMediaAnimation or InputMediaAudio or InputMediaPhoto or InputMediaVideo or InputMediaVoiceNote"
 
 var chatIDFieldNames = map[string]bool{"chat_id": true, "from_chat_id": true}
 
@@ -240,6 +255,8 @@ func resolveType(apiType, jsonFieldName string) string {
 		return "InputFile"
 	case replyMarkupUnionText:
 		return "ReplyMarkup"
+	case inputRichMessageMediaSourceText:
+		return "InputRichMessageMediaSource"
 	default:
 		if alias, ok := aliasedTypes[apiType]; ok {
 			return alias
@@ -251,8 +268,8 @@ func resolveType(apiType, jsonFieldName string) string {
 // mergedFieldRenames resolves a same-JSON-name field-type collision between
 // two members of the same union when building its Merged<Type> struct (see
 // unionMergedFields in internal/gen/unions.go) — verified exhaustively
-// against api.json 10.1: exactly three unions have one such collision each,
-// always a clean two-way split (every member but one agrees on the type).
+// against api.json 10.2: four unions have one such collision each, always a
+// clean two-way split (every member but one agrees on the type).
 // Keyed by "UnionSpecName.MemberSpecName.json_field_name", giving that one
 // member's field an alternate name in the merged struct instead of the
 // plain fieldName(json_field_name) every other member sharing that JSON
@@ -270,6 +287,10 @@ var mergedFieldRenames = map[string]string{
 	// RichBlock member with a caption field uses the concrete
 	// *RichBlockCaption.
 	"RichBlock.RichBlockTable.caption": "TableCaption",
+	// InputRichBlockTable.caption (10.2) is the same RichText-vs-
+	// *RichBlockCaption split as RichBlockTable above, on the input-side
+	// mirror union Bot API 10.2 added.
+	"InputRichBlock.InputRichBlockTable.caption": "TableCaption",
 }
 
 // isOptionalTypeField reports whether a type's field (not a method param —

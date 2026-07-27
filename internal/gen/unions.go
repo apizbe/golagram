@@ -37,7 +37,7 @@ type unionMemberInfo struct {
 var unionsBySpecName = map[string]*unionInfo{}
 
 // discFieldNames are the only field names Telegram uses as union
-// discriminators (verified exhaustively against api.json 10.1).
+// discriminators (verified exhaustively against api.json 10.2).
 var discFieldNames = map[string]bool{"type": true, "status": true, "source": true}
 
 var discValueREs = []*regexp.Regexp{
@@ -282,10 +282,11 @@ func unionMergedFields(it Item, typeNames map[string]bool, typesByName map[strin
 
 // richTextPrimitiveAlternatives is a targeted fixup, not a general rule —
 // keyed by exact union spec name, same precedent as mapping.go's
-// mediaFileFieldFixups. RichText is the only union in the 10.1 spec whose
+// mediaFileFieldFixups. RichText is the only union in the 10.2 spec whose
 // docs prose says it "can be either a String for plain text, an Array of
 // RichText, or" one of its named object members — every other union
-// (RichBlock included) is object-only. json.Unmarshal can't discriminate a
+// (RichBlock and its 10.2 input-side mirror InputRichBlock included) is
+// object-only. json.Unmarshal can't discriminate a
 // bare string/array from an object by field-peeking the way the normal
 // discriminator switch below does, so these two alternatives are tried,
 // in this order, before falling into that switch. RichPlainText and
