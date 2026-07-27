@@ -198,6 +198,15 @@ func FilterIsForwarded() Filter {
 	return filterMessage(func(m *Message) bool { return m.ForwardOrigin != nil })
 }
 
+// FilterIsEphemeral matches an incoming ephemeral message — one visible
+// only to its own sender, invisible to every other chat member (see
+// [Message.AnswerEphemeral], [CallbackQuery.SendEphemeral]). An incoming
+// ephemeral command declared via BotCommand.IsEphemeral is the common
+// trigger for this.
+func FilterIsEphemeral() Filter {
+	return filterMessage(func(m *Message) bool { return m.EphemeralMessageID != 0 })
+}
+
 // FilterIsReply matches a message that replies to another message.
 func FilterIsReply() Filter {
 	return filterMessage(func(m *Message) bool { return m.ReplyToMessage != nil })
