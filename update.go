@@ -96,9 +96,13 @@ type Update struct {
 	// ManagedBot is set when a bot managed by this bot was created, or a
 	// managed bot's token or owner changed. See [Router.ManagedBot].
 	ManagedBot *ManagedBotUpdated `json:"managed_bot,omitempty"`
+	// Subscription is set when a user's payment subscription toward the
+	// bot changed — canceled, re-enabled, or failed. See
+	// [Router.Subscription].
+	Subscription *BotSubscriptionUpdated `json:"subscription,omitempty"`
 }
 
-// Kind returns which of Update's 25 payload fields is set, as Telegram's own
+// Kind returns which of Update's 26 payload fields is set, as Telegram's own
 // JSON field name (e.g. "message", "callback_query") — the same strings
 // [Router.UsedUpdateKinds] and allowed_updates use. Returns "" for a
 // zero-value Update (shouldn't happen for anything Telegram actually
@@ -155,6 +159,8 @@ func (u *Update) Kind() string {
 		return "removed_chat_boost"
 	case u.ManagedBot != nil:
 		return "managed_bot"
+	case u.Subscription != nil:
+		return "subscription"
 	default:
 		return ""
 	}

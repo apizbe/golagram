@@ -215,6 +215,8 @@ func (c *Ctx) From() *User {
 		return c.ChatJoinRequest.From
 	case c.ManagedBot != nil:
 		return c.ManagedBot.User
+	case c.Subscription != nil:
+		return c.Subscription.User
 	default:
 		if m := c.anyMessage(); m != nil {
 			return m.From
@@ -476,6 +478,8 @@ func (c *Ctx) identityTriple() (chat, user, thread int64) {
 		return chatID(c.RemovedChatBoost.Chat), 0, 0
 	case c.ManagedBot != nil:
 		return 0, userID(c.ManagedBot.User), 0
+	case c.Subscription != nil:
+		return 0, userID(c.Subscription.User), 0
 	default:
 		return 0, 0, 0
 	}

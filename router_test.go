@@ -149,6 +149,7 @@ func allUpdateKindCases() []updateKindCase {
 		{"chat_boost", func() *Update { return &Update{ChatBoost: &ChatBoostUpdated{}} }, func(r *Router) *registration { return r.ChatBoost() }},
 		{"removed_chat_boost", func() *Update { return &Update{RemovedChatBoost: &ChatBoostRemoved{}} }, func(r *Router) *registration { return r.RemovedChatBoost() }},
 		{"managed_bot", func() *Update { return &Update{ManagedBot: &ManagedBotUpdated{}} }, func(r *Router) *registration { return r.ManagedBot() }},
+		{"subscription", func() *Update { return &Update{Subscription: &BotSubscriptionUpdated{}} }, func(r *Router) *registration { return r.Subscription() }},
 	}
 }
 

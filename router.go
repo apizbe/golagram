@@ -503,6 +503,11 @@ func (r *Router) ManagedBot(filters ...Filter) *registration {
 	return r.register("managed_bot", func(c *Ctx) bool { return c.ManagedBot != nil }, filters)
 }
 
+// Subscription registers a handler for the subscription update kind.
+func (r *Router) Subscription(filters ...Filter) *registration {
+	return r.register("subscription", func(c *Ctx) bool { return c.Subscription != nil }, filters)
+}
+
 // Update registers a handler matching every update kind unconditionally
 // (subject only to any filters passed) — a catch-all observer for
 // cross-cutting concerns that want to see every update regardless of kind
