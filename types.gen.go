@@ -6227,6 +6227,7 @@ type MessageOrigin interface {
 	isMessageOrigin()
 	GetDate() int64
 	GetType() string
+	MergeMessageOrigin() MergedMessageOrigin
 }
 
 func (*MessageOriginUser) isMessageOrigin()       {}
@@ -6245,10 +6246,62 @@ func (v *MessageOriginChat) GetType() string       { return v.Type }
 func (v *MessageOriginChannel) GetDate() int64     { return v.Date }
 func (v *MessageOriginChannel) GetType() string    { return v.Type }
 
+// MergedMessageOrigin is the union of every MessageOrigin member's fields, returned by
+// MessageOrigin.MergeMessageOrigin() — an escape hatch from type-switching for callers who just
+// want to read a field generically. A field a particular member doesn't
+// have keeps its zero value here, so it can't be told apart from a field
+// that's genuinely zero — check the discriminator field, or type-switch the
+// original interface value, when that distinction matters.
+type MergedMessageOrigin struct {
+	AuthorSignature string
+	Chat            *Chat
+	Date            int64
+	MessageID       int64
+	SenderChat      *Chat
+	SenderUser      *User
+	SenderUserName  string
+	Type            string
+}
+
+// The MergeMessageOrigin methods below implement MessageOrigin: every member's fields, folded
+// into one flat struct — see MergedMessageOrigin's doc for the tradeoff.
+func (v *MessageOriginUser) MergeMessageOrigin() MergedMessageOrigin {
+	return MergedMessageOrigin{
+		Type:       v.Type,
+		Date:       v.Date,
+		SenderUser: v.SenderUser,
+	}
+}
+func (v *MessageOriginHiddenUser) MergeMessageOrigin() MergedMessageOrigin {
+	return MergedMessageOrigin{
+		Type:           v.Type,
+		Date:           v.Date,
+		SenderUserName: v.SenderUserName,
+	}
+}
+func (v *MessageOriginChat) MergeMessageOrigin() MergedMessageOrigin {
+	return MergedMessageOrigin{
+		Type:            v.Type,
+		Date:            v.Date,
+		SenderChat:      v.SenderChat,
+		AuthorSignature: v.AuthorSignature,
+	}
+}
+func (v *MessageOriginChannel) MergeMessageOrigin() MergedMessageOrigin {
+	return MergedMessageOrigin{
+		Type:            v.Type,
+		Date:            v.Date,
+		Chat:            v.Chat,
+		MessageID:       v.MessageID,
+		AuthorSignature: v.AuthorSignature,
+	}
+}
+
 // This object describes paid media. Currently, it can be one of
 type PaidMedia interface {
 	isPaidMedia()
 	GetType() string
+	MergePaidMedia() MergedPaidMedia
 }
 
 func (*PaidMediaLivePhoto) isPaidMedia() {}
@@ -6263,10 +6316,56 @@ func (v *PaidMediaPhoto) GetType() string     { return v.Type }
 func (v *PaidMediaPreview) GetType() string   { return v.Type }
 func (v *PaidMediaVideo) GetType() string     { return v.Type }
 
+// MergedPaidMedia is the union of every PaidMedia member's fields, returned by
+// PaidMedia.MergePaidMedia() — an escape hatch from type-switching for callers who just
+// want to read a field generically. A field a particular member doesn't
+// have keeps its zero value here, so it can't be told apart from a field
+// that's genuinely zero — check the discriminator field, or type-switch the
+// original interface value, when that distinction matters.
+type MergedPaidMedia struct {
+	Duration  int64
+	Height    int64
+	LivePhoto *LivePhoto
+	Photo     []PhotoSize
+	Type      string
+	Video     *Video
+	Width     int64
+}
+
+// The MergePaidMedia methods below implement PaidMedia: every member's fields, folded
+// into one flat struct — see MergedPaidMedia's doc for the tradeoff.
+func (v *PaidMediaLivePhoto) MergePaidMedia() MergedPaidMedia {
+	return MergedPaidMedia{
+		Type:      v.Type,
+		LivePhoto: v.LivePhoto,
+	}
+}
+func (v *PaidMediaPhoto) MergePaidMedia() MergedPaidMedia {
+	return MergedPaidMedia{
+		Type:  v.Type,
+		Photo: v.Photo,
+	}
+}
+func (v *PaidMediaPreview) MergePaidMedia() MergedPaidMedia {
+	return MergedPaidMedia{
+		Type:     v.Type,
+		Width:    v.Width,
+		Height:   v.Height,
+		Duration: v.Duration,
+	}
+}
+func (v *PaidMediaVideo) MergePaidMedia() MergedPaidMedia {
+	return MergedPaidMedia{
+		Type:  v.Type,
+		Video: v.Video,
+	}
+}
+
 // This object represents the content of a poll description or a quiz explanation to be sent. It should be one of
 type InputPollMedia interface {
 	isInputPollMedia()
 	GetType() string
+	MergeInputPollMedia() MergedInputPollMedia
 }
 
 func (*InputMediaAnimation) isInputPollMedia() {}
@@ -6289,10 +6388,150 @@ func (v *InputMediaPhoto) GetType() string     { return v.Type }
 func (v *InputMediaVenue) GetType() string     { return v.Type }
 func (v *InputMediaVideo) GetType() string     { return v.Type }
 
+// MergedInputPollMedia is the union of every InputPollMedia member's fields, returned by
+// InputPollMedia.MergeInputPollMedia() — an escape hatch from type-switching for callers who just
+// want to read a field generically. A field a particular member doesn't
+// have keeps its zero value here, so it can't be told apart from a field
+// that's genuinely zero — check the discriminator field, or type-switch the
+// original interface value, when that distinction matters.
+type MergedInputPollMedia struct {
+	Address                     string
+	Caption                     string
+	CaptionEntities             []MessageEntity
+	Cover                       string
+	DisableContentTypeDetection bool
+	Duration                    int64
+	FoursquareID                string
+	FoursquareType              string
+	GooglePlaceID               string
+	GooglePlaceType             string
+	HasSpoiler                  bool
+	Height                      int64
+	HorizontalAccuracy          float64
+	Latitude                    float64
+	Longitude                   float64
+	Media                       InputFile
+	ParseMode                   string
+	Performer                   string
+	Photo                       InputFile
+	ShowCaptionAboveMedia       bool
+	StartTimestamp              int64
+	SupportsStreaming           bool
+	Thumbnail                   InputFile
+	Title                       string
+	Type                        string
+	Width                       int64
+}
+
+// The MergeInputPollMedia methods below implement InputPollMedia: every member's fields, folded
+// into one flat struct — see MergedInputPollMedia's doc for the tradeoff.
+func (v *InputMediaAnimation) MergeInputPollMedia() MergedInputPollMedia {
+	return MergedInputPollMedia{
+		Type:                  v.Type,
+		Media:                 v.Media,
+		Thumbnail:             v.Thumbnail,
+		Caption:               v.Caption,
+		ParseMode:             v.ParseMode,
+		CaptionEntities:       v.CaptionEntities,
+		ShowCaptionAboveMedia: v.ShowCaptionAboveMedia,
+		Width:                 v.Width,
+		Height:                v.Height,
+		Duration:              v.Duration,
+		HasSpoiler:            v.HasSpoiler,
+	}
+}
+func (v *InputMediaAudio) MergeInputPollMedia() MergedInputPollMedia {
+	return MergedInputPollMedia{
+		Type:            v.Type,
+		Media:           v.Media,
+		Thumbnail:       v.Thumbnail,
+		Caption:         v.Caption,
+		ParseMode:       v.ParseMode,
+		CaptionEntities: v.CaptionEntities,
+		Duration:        v.Duration,
+		Performer:       v.Performer,
+		Title:           v.Title,
+	}
+}
+func (v *InputMediaDocument) MergeInputPollMedia() MergedInputPollMedia {
+	return MergedInputPollMedia{
+		Type:                        v.Type,
+		Media:                       v.Media,
+		Thumbnail:                   v.Thumbnail,
+		Caption:                     v.Caption,
+		ParseMode:                   v.ParseMode,
+		CaptionEntities:             v.CaptionEntities,
+		DisableContentTypeDetection: v.DisableContentTypeDetection,
+	}
+}
+func (v *InputMediaLivePhoto) MergeInputPollMedia() MergedInputPollMedia {
+	return MergedInputPollMedia{
+		Type:                  v.Type,
+		Media:                 v.Media,
+		Photo:                 v.Photo,
+		Caption:               v.Caption,
+		ParseMode:             v.ParseMode,
+		CaptionEntities:       v.CaptionEntities,
+		ShowCaptionAboveMedia: v.ShowCaptionAboveMedia,
+		HasSpoiler:            v.HasSpoiler,
+	}
+}
+func (v *InputMediaLocation) MergeInputPollMedia() MergedInputPollMedia {
+	return MergedInputPollMedia{
+		Type:               v.Type,
+		Latitude:           v.Latitude,
+		Longitude:          v.Longitude,
+		HorizontalAccuracy: v.HorizontalAccuracy,
+	}
+}
+func (v *InputMediaPhoto) MergeInputPollMedia() MergedInputPollMedia {
+	return MergedInputPollMedia{
+		Type:                  v.Type,
+		Media:                 v.Media,
+		Caption:               v.Caption,
+		ParseMode:             v.ParseMode,
+		CaptionEntities:       v.CaptionEntities,
+		ShowCaptionAboveMedia: v.ShowCaptionAboveMedia,
+		HasSpoiler:            v.HasSpoiler,
+	}
+}
+func (v *InputMediaVenue) MergeInputPollMedia() MergedInputPollMedia {
+	return MergedInputPollMedia{
+		Type:            v.Type,
+		Latitude:        v.Latitude,
+		Longitude:       v.Longitude,
+		Title:           v.Title,
+		Address:         v.Address,
+		FoursquareID:    v.FoursquareID,
+		FoursquareType:  v.FoursquareType,
+		GooglePlaceID:   v.GooglePlaceID,
+		GooglePlaceType: v.GooglePlaceType,
+	}
+}
+func (v *InputMediaVideo) MergeInputPollMedia() MergedInputPollMedia {
+	return MergedInputPollMedia{
+		Type:                  v.Type,
+		Media:                 v.Media,
+		Thumbnail:             v.Thumbnail,
+		Cover:                 v.Cover,
+		StartTimestamp:        v.StartTimestamp,
+		Caption:               v.Caption,
+		ParseMode:             v.ParseMode,
+		CaptionEntities:       v.CaptionEntities,
+		ShowCaptionAboveMedia: v.ShowCaptionAboveMedia,
+		Width:                 v.Width,
+		Height:                v.Height,
+		Duration:              v.Duration,
+		SupportsStreaming:     v.SupportsStreaming,
+		HasSpoiler:            v.HasSpoiler,
+	}
+}
+
 // This object represents the content of a poll option to be sent. It should be one of
 type InputPollOptionMedia interface {
 	isInputPollOptionMedia()
 	GetType() string
+	MergeInputPollOptionMedia() MergedInputPollOptionMedia
 }
 
 func (*InputMediaAnimation) isInputPollOptionMedia() {}
@@ -6309,10 +6548,140 @@ func (*InputMediaVideo) isInputPollOptionMedia()     {}
 func (v *InputMediaLink) GetType() string    { return v.Type }
 func (v *InputMediaSticker) GetType() string { return v.Type }
 
+// MergedInputPollOptionMedia is the union of every InputPollOptionMedia member's fields, returned by
+// InputPollOptionMedia.MergeInputPollOptionMedia() — an escape hatch from type-switching for callers who just
+// want to read a field generically. A field a particular member doesn't
+// have keeps its zero value here, so it can't be told apart from a field
+// that's genuinely zero — check the discriminator field, or type-switch the
+// original interface value, when that distinction matters.
+type MergedInputPollOptionMedia struct {
+	Address               string
+	Caption               string
+	CaptionEntities       []MessageEntity
+	Cover                 string
+	Duration              int64
+	Emoji                 string
+	FoursquareID          string
+	FoursquareType        string
+	GooglePlaceID         string
+	GooglePlaceType       string
+	HasSpoiler            bool
+	Height                int64
+	HorizontalAccuracy    float64
+	Latitude              float64
+	Longitude             float64
+	Media                 InputFile
+	ParseMode             string
+	Photo                 InputFile
+	ShowCaptionAboveMedia bool
+	StartTimestamp        int64
+	StickerMedia          string
+	SupportsStreaming     bool
+	Thumbnail             InputFile
+	Title                 string
+	Type                  string
+	URL                   string
+	Width                 int64
+}
+
+// The MergeInputPollOptionMedia methods below implement InputPollOptionMedia: every member's fields, folded
+// into one flat struct — see MergedInputPollOptionMedia's doc for the tradeoff.
+func (v *InputMediaAnimation) MergeInputPollOptionMedia() MergedInputPollOptionMedia {
+	return MergedInputPollOptionMedia{
+		Type:                  v.Type,
+		Media:                 v.Media,
+		Thumbnail:             v.Thumbnail,
+		Caption:               v.Caption,
+		ParseMode:             v.ParseMode,
+		CaptionEntities:       v.CaptionEntities,
+		ShowCaptionAboveMedia: v.ShowCaptionAboveMedia,
+		Width:                 v.Width,
+		Height:                v.Height,
+		Duration:              v.Duration,
+		HasSpoiler:            v.HasSpoiler,
+	}
+}
+func (v *InputMediaLink) MergeInputPollOptionMedia() MergedInputPollOptionMedia {
+	return MergedInputPollOptionMedia{
+		Type: v.Type,
+		URL:  v.URL,
+	}
+}
+func (v *InputMediaLivePhoto) MergeInputPollOptionMedia() MergedInputPollOptionMedia {
+	return MergedInputPollOptionMedia{
+		Type:                  v.Type,
+		Media:                 v.Media,
+		Photo:                 v.Photo,
+		Caption:               v.Caption,
+		ParseMode:             v.ParseMode,
+		CaptionEntities:       v.CaptionEntities,
+		ShowCaptionAboveMedia: v.ShowCaptionAboveMedia,
+		HasSpoiler:            v.HasSpoiler,
+	}
+}
+func (v *InputMediaLocation) MergeInputPollOptionMedia() MergedInputPollOptionMedia {
+	return MergedInputPollOptionMedia{
+		Type:               v.Type,
+		Latitude:           v.Latitude,
+		Longitude:          v.Longitude,
+		HorizontalAccuracy: v.HorizontalAccuracy,
+	}
+}
+func (v *InputMediaPhoto) MergeInputPollOptionMedia() MergedInputPollOptionMedia {
+	return MergedInputPollOptionMedia{
+		Type:                  v.Type,
+		Media:                 v.Media,
+		Caption:               v.Caption,
+		ParseMode:             v.ParseMode,
+		CaptionEntities:       v.CaptionEntities,
+		ShowCaptionAboveMedia: v.ShowCaptionAboveMedia,
+		HasSpoiler:            v.HasSpoiler,
+	}
+}
+func (v *InputMediaSticker) MergeInputPollOptionMedia() MergedInputPollOptionMedia {
+	return MergedInputPollOptionMedia{
+		Type:         v.Type,
+		StickerMedia: v.Media,
+		Emoji:        v.Emoji,
+	}
+}
+func (v *InputMediaVenue) MergeInputPollOptionMedia() MergedInputPollOptionMedia {
+	return MergedInputPollOptionMedia{
+		Type:            v.Type,
+		Latitude:        v.Latitude,
+		Longitude:       v.Longitude,
+		Title:           v.Title,
+		Address:         v.Address,
+		FoursquareID:    v.FoursquareID,
+		FoursquareType:  v.FoursquareType,
+		GooglePlaceID:   v.GooglePlaceID,
+		GooglePlaceType: v.GooglePlaceType,
+	}
+}
+func (v *InputMediaVideo) MergeInputPollOptionMedia() MergedInputPollOptionMedia {
+	return MergedInputPollOptionMedia{
+		Type:                  v.Type,
+		Media:                 v.Media,
+		Thumbnail:             v.Thumbnail,
+		Cover:                 v.Cover,
+		StartTimestamp:        v.StartTimestamp,
+		Caption:               v.Caption,
+		ParseMode:             v.ParseMode,
+		CaptionEntities:       v.CaptionEntities,
+		ShowCaptionAboveMedia: v.ShowCaptionAboveMedia,
+		Width:                 v.Width,
+		Height:                v.Height,
+		Duration:              v.Duration,
+		SupportsStreaming:     v.SupportsStreaming,
+		HasSpoiler:            v.HasSpoiler,
+	}
+}
+
 // This object describes the way a background is filled based on the selected colors. Currently, it can be one of
 type BackgroundFill interface {
 	isBackgroundFill()
 	GetType() string
+	MergeBackgroundFill() MergedBackgroundFill
 }
 
 func (*BackgroundFillSolid) isBackgroundFill()            {}
@@ -6325,10 +6694,49 @@ func (v *BackgroundFillSolid) GetType() string            { return v.Type }
 func (v *BackgroundFillGradient) GetType() string         { return v.Type }
 func (v *BackgroundFillFreeformGradient) GetType() string { return v.Type }
 
+// MergedBackgroundFill is the union of every BackgroundFill member's fields, returned by
+// BackgroundFill.MergeBackgroundFill() — an escape hatch from type-switching for callers who just
+// want to read a field generically. A field a particular member doesn't
+// have keeps its zero value here, so it can't be told apart from a field
+// that's genuinely zero — check the discriminator field, or type-switch the
+// original interface value, when that distinction matters.
+type MergedBackgroundFill struct {
+	BottomColor   int64
+	Color         int64
+	Colors        []int64
+	RotationAngle int64
+	TopColor      int64
+	Type          string
+}
+
+// The MergeBackgroundFill methods below implement BackgroundFill: every member's fields, folded
+// into one flat struct — see MergedBackgroundFill's doc for the tradeoff.
+func (v *BackgroundFillSolid) MergeBackgroundFill() MergedBackgroundFill {
+	return MergedBackgroundFill{
+		Type:  v.Type,
+		Color: v.Color,
+	}
+}
+func (v *BackgroundFillGradient) MergeBackgroundFill() MergedBackgroundFill {
+	return MergedBackgroundFill{
+		Type:          v.Type,
+		TopColor:      v.TopColor,
+		BottomColor:   v.BottomColor,
+		RotationAngle: v.RotationAngle,
+	}
+}
+func (v *BackgroundFillFreeformGradient) MergeBackgroundFill() MergedBackgroundFill {
+	return MergedBackgroundFill{
+		Type:   v.Type,
+		Colors: v.Colors,
+	}
+}
+
 // This object describes the type of a background. Currently, it can be one of
 type BackgroundType interface {
 	isBackgroundType()
 	GetType() string
+	MergeBackgroundType() MergedBackgroundType
 }
 
 func (*BackgroundTypeFill) isBackgroundType()      {}
@@ -6343,11 +6751,65 @@ func (v *BackgroundTypeWallpaper) GetType() string { return v.Type }
 func (v *BackgroundTypePattern) GetType() string   { return v.Type }
 func (v *BackgroundTypeChatTheme) GetType() string { return v.Type }
 
+// MergedBackgroundType is the union of every BackgroundType member's fields, returned by
+// BackgroundType.MergeBackgroundType() — an escape hatch from type-switching for callers who just
+// want to read a field generically. A field a particular member doesn't
+// have keeps its zero value here, so it can't be told apart from a field
+// that's genuinely zero — check the discriminator field, or type-switch the
+// original interface value, when that distinction matters.
+type MergedBackgroundType struct {
+	DarkThemeDimming int64
+	Document         *Document
+	Fill             BackgroundFill
+	Intensity        int64
+	IsBlurred        bool
+	IsInverted       bool
+	IsMoving         bool
+	ThemeName        string
+	Type             string
+}
+
+// The MergeBackgroundType methods below implement BackgroundType: every member's fields, folded
+// into one flat struct — see MergedBackgroundType's doc for the tradeoff.
+func (v *BackgroundTypeFill) MergeBackgroundType() MergedBackgroundType {
+	return MergedBackgroundType{
+		Type:             v.Type,
+		Fill:             v.Fill,
+		DarkThemeDimming: v.DarkThemeDimming,
+	}
+}
+func (v *BackgroundTypeWallpaper) MergeBackgroundType() MergedBackgroundType {
+	return MergedBackgroundType{
+		Type:             v.Type,
+		Document:         v.Document,
+		DarkThemeDimming: v.DarkThemeDimming,
+		IsBlurred:        v.IsBlurred,
+		IsMoving:         v.IsMoving,
+	}
+}
+func (v *BackgroundTypePattern) MergeBackgroundType() MergedBackgroundType {
+	return MergedBackgroundType{
+		Type:       v.Type,
+		Document:   v.Document,
+		Fill:       v.Fill,
+		Intensity:  v.Intensity,
+		IsInverted: v.IsInverted,
+		IsMoving:   v.IsMoving,
+	}
+}
+func (v *BackgroundTypeChatTheme) MergeBackgroundType() MergedBackgroundType {
+	return MergedBackgroundType{
+		Type:      v.Type,
+		ThemeName: v.ThemeName,
+	}
+}
+
 // This object contains information about one member of a chat. Currently, the following 6 types of chat members are supported:
 type ChatMember interface {
 	isChatMember()
 	GetStatus() string
 	GetUser() *User
+	MergeChatMember() MergedChatMember
 }
 
 func (*ChatMemberOwner) isChatMember()         {}
@@ -6372,10 +6834,138 @@ func (v *ChatMemberLeft) GetUser() *User             { return v.User }
 func (v *ChatMemberBanned) GetStatus() string        { return v.Status }
 func (v *ChatMemberBanned) GetUser() *User           { return v.User }
 
+// MergedChatMember is the union of every ChatMember member's fields, returned by
+// ChatMember.MergeChatMember() — an escape hatch from type-switching for callers who just
+// want to read a field generically. A field a particular member doesn't
+// have keeps its zero value here, so it can't be told apart from a field
+// that's genuinely zero — check the discriminator field, or type-switch the
+// original interface value, when that distinction matters.
+type MergedChatMember struct {
+	CanAddWebPagePreviews   bool
+	CanBeEdited             bool
+	CanChangeInfo           bool
+	CanDeleteMessages       bool
+	CanDeleteStories        bool
+	CanEditMessages         bool
+	CanEditStories          bool
+	CanEditTag              bool
+	CanInviteUsers          bool
+	CanManageChat           bool
+	CanManageDirectMessages bool
+	CanManageTags           bool
+	CanManageTopics         bool
+	CanManageVideoChats     bool
+	CanPinMessages          bool
+	CanPostMessages         bool
+	CanPostStories          bool
+	CanPromoteMembers       bool
+	CanReactToMessages      bool
+	CanRestrictMembers      bool
+	CanSendAudios           bool
+	CanSendDocuments        bool
+	CanSendMessages         bool
+	CanSendOtherMessages    bool
+	CanSendPhotos           bool
+	CanSendPolls            bool
+	CanSendVideoNotes       bool
+	CanSendVideos           bool
+	CanSendVoiceNotes       bool
+	CustomTitle             string
+	IsAnonymous             bool
+	IsMember                bool
+	Status                  string
+	Tag                     string
+	UntilDate               int64
+	User                    *User
+}
+
+// The MergeChatMember methods below implement ChatMember: every member's fields, folded
+// into one flat struct — see MergedChatMember's doc for the tradeoff.
+func (v *ChatMemberOwner) MergeChatMember() MergedChatMember {
+	return MergedChatMember{
+		Status:      v.Status,
+		User:        v.User,
+		IsAnonymous: v.IsAnonymous,
+		CustomTitle: v.CustomTitle,
+	}
+}
+func (v *ChatMemberAdministrator) MergeChatMember() MergedChatMember {
+	return MergedChatMember{
+		Status:                  v.Status,
+		User:                    v.User,
+		CanBeEdited:             v.CanBeEdited,
+		IsAnonymous:             v.IsAnonymous,
+		CanManageChat:           v.CanManageChat,
+		CanDeleteMessages:       v.CanDeleteMessages,
+		CanManageVideoChats:     v.CanManageVideoChats,
+		CanRestrictMembers:      v.CanRestrictMembers,
+		CanPromoteMembers:       v.CanPromoteMembers,
+		CanChangeInfo:           v.CanChangeInfo,
+		CanInviteUsers:          v.CanInviteUsers,
+		CanPostStories:          v.CanPostStories,
+		CanEditStories:          v.CanEditStories,
+		CanDeleteStories:        v.CanDeleteStories,
+		CanPostMessages:         v.CanPostMessages,
+		CanEditMessages:         v.CanEditMessages,
+		CanPinMessages:          v.CanPinMessages,
+		CanManageTopics:         v.CanManageTopics,
+		CanManageDirectMessages: v.CanManageDirectMessages,
+		CanManageTags:           v.CanManageTags,
+		CustomTitle:             v.CustomTitle,
+	}
+}
+func (v *ChatMemberMember) MergeChatMember() MergedChatMember {
+	return MergedChatMember{
+		Status:    v.Status,
+		Tag:       v.Tag,
+		User:      v.User,
+		UntilDate: v.UntilDate,
+	}
+}
+func (v *ChatMemberRestricted) MergeChatMember() MergedChatMember {
+	return MergedChatMember{
+		Status:                v.Status,
+		Tag:                   v.Tag,
+		User:                  v.User,
+		IsMember:              v.IsMember,
+		CanSendMessages:       v.CanSendMessages,
+		CanSendAudios:         v.CanSendAudios,
+		CanSendDocuments:      v.CanSendDocuments,
+		CanSendPhotos:         v.CanSendPhotos,
+		CanSendVideos:         v.CanSendVideos,
+		CanSendVideoNotes:     v.CanSendVideoNotes,
+		CanSendVoiceNotes:     v.CanSendVoiceNotes,
+		CanSendPolls:          v.CanSendPolls,
+		CanSendOtherMessages:  v.CanSendOtherMessages,
+		CanAddWebPagePreviews: v.CanAddWebPagePreviews,
+		CanReactToMessages:    v.CanReactToMessages,
+		CanEditTag:            v.CanEditTag,
+		CanChangeInfo:         v.CanChangeInfo,
+		CanInviteUsers:        v.CanInviteUsers,
+		CanPinMessages:        v.CanPinMessages,
+		CanManageTopics:       v.CanManageTopics,
+		UntilDate:             v.UntilDate,
+	}
+}
+func (v *ChatMemberLeft) MergeChatMember() MergedChatMember {
+	return MergedChatMember{
+		Status: v.Status,
+		User:   v.User,
+	}
+}
+func (v *ChatMemberBanned) MergeChatMember() MergedChatMember {
+	return MergedChatMember{
+		Status:    v.Status,
+		User:      v.User,
+		UntilDate: v.UntilDate,
+	}
+}
+
 // Describes the type of a clickable area on a story. Currently, it can be one of
 type StoryAreaType interface {
 	isStoryAreaType()
 	GetType() string
+	MergeStoryAreaType() MergedStoryAreaType
 }
 
 func (*StoryAreaTypeLocation) isStoryAreaType()          {}
@@ -6392,10 +6982,71 @@ func (v *StoryAreaTypeLink) GetType() string              { return v.Type }
 func (v *StoryAreaTypeWeather) GetType() string           { return v.Type }
 func (v *StoryAreaTypeUniqueGift) GetType() string        { return v.Type }
 
+// MergedStoryAreaType is the union of every StoryAreaType member's fields, returned by
+// StoryAreaType.MergeStoryAreaType() — an escape hatch from type-switching for callers who just
+// want to read a field generically. A field a particular member doesn't
+// have keeps its zero value here, so it can't be told apart from a field
+// that's genuinely zero — check the discriminator field, or type-switch the
+// original interface value, when that distinction matters.
+type MergedStoryAreaType struct {
+	Address         *LocationAddress
+	BackgroundColor int64
+	Emoji           string
+	IsDark          bool
+	IsFlipped       bool
+	Latitude        float64
+	Longitude       float64
+	Name            string
+	ReactionType    ReactionType
+	Temperature     float64
+	Type            string
+	URL             string
+}
+
+// The MergeStoryAreaType methods below implement StoryAreaType: every member's fields, folded
+// into one flat struct — see MergedStoryAreaType's doc for the tradeoff.
+func (v *StoryAreaTypeLocation) MergeStoryAreaType() MergedStoryAreaType {
+	return MergedStoryAreaType{
+		Type:      v.Type,
+		Latitude:  v.Latitude,
+		Longitude: v.Longitude,
+		Address:   v.Address,
+	}
+}
+func (v *StoryAreaTypeSuggestedReaction) MergeStoryAreaType() MergedStoryAreaType {
+	return MergedStoryAreaType{
+		Type:         v.Type,
+		ReactionType: v.ReactionType,
+		IsDark:       v.IsDark,
+		IsFlipped:    v.IsFlipped,
+	}
+}
+func (v *StoryAreaTypeLink) MergeStoryAreaType() MergedStoryAreaType {
+	return MergedStoryAreaType{
+		Type: v.Type,
+		URL:  v.URL,
+	}
+}
+func (v *StoryAreaTypeWeather) MergeStoryAreaType() MergedStoryAreaType {
+	return MergedStoryAreaType{
+		Type:            v.Type,
+		Temperature:     v.Temperature,
+		Emoji:           v.Emoji,
+		BackgroundColor: v.BackgroundColor,
+	}
+}
+func (v *StoryAreaTypeUniqueGift) MergeStoryAreaType() MergedStoryAreaType {
+	return MergedStoryAreaType{
+		Type: v.Type,
+		Name: v.Name,
+	}
+}
+
 // This object describes the type of a reaction. Currently, it can be one of
 type ReactionType interface {
 	isReactionType()
 	GetType() string
+	MergeReactionType() MergedReactionType
 }
 
 func (*ReactionTypeEmoji) isReactionType()       {}
@@ -6408,6 +7059,38 @@ func (v *ReactionTypeEmoji) GetType() string       { return v.Type }
 func (v *ReactionTypeCustomEmoji) GetType() string { return v.Type }
 func (v *ReactionTypePaid) GetType() string        { return v.Type }
 
+// MergedReactionType is the union of every ReactionType member's fields, returned by
+// ReactionType.MergeReactionType() — an escape hatch from type-switching for callers who just
+// want to read a field generically. A field a particular member doesn't
+// have keeps its zero value here, so it can't be told apart from a field
+// that's genuinely zero — check the discriminator field, or type-switch the
+// original interface value, when that distinction matters.
+type MergedReactionType struct {
+	CustomEmojiID string
+	Emoji         string
+	Type          string
+}
+
+// The MergeReactionType methods below implement ReactionType: every member's fields, folded
+// into one flat struct — see MergedReactionType's doc for the tradeoff.
+func (v *ReactionTypeEmoji) MergeReactionType() MergedReactionType {
+	return MergedReactionType{
+		Type:  v.Type,
+		Emoji: v.Emoji,
+	}
+}
+func (v *ReactionTypeCustomEmoji) MergeReactionType() MergedReactionType {
+	return MergedReactionType{
+		Type:          v.Type,
+		CustomEmojiID: v.CustomEmojiID,
+	}
+}
+func (v *ReactionTypePaid) MergeReactionType() MergedReactionType {
+	return MergedReactionType{
+		Type: v.Type,
+	}
+}
+
 // This object describes a gift received and owned by a user or a chat. Currently, it can be one of
 type OwnedGift interface {
 	isOwnedGift()
@@ -6416,6 +7099,7 @@ type OwnedGift interface {
 	GetSendDate() int64
 	GetSenderUser() *User
 	GetType() string
+	MergeOwnedGift() MergedOwnedGift
 }
 
 func (*OwnedGiftRegular) isOwnedGift() {}
@@ -6434,10 +7118,74 @@ func (v *OwnedGiftUnique) GetSendDate() int64      { return v.SendDate }
 func (v *OwnedGiftUnique) GetSenderUser() *User    { return v.SenderUser }
 func (v *OwnedGiftUnique) GetType() string         { return v.Type }
 
+// MergedOwnedGift is the union of every OwnedGift member's fields, returned by
+// OwnedGift.MergeOwnedGift() — an escape hatch from type-switching for callers who just
+// want to read a field generically. A field a particular member doesn't
+// have keeps its zero value here, so it can't be told apart from a field
+// that's genuinely zero — check the discriminator field, or type-switch the
+// original interface value, when that distinction matters.
+type MergedOwnedGift struct {
+	CanBeTransferred        bool
+	CanBeUpgraded           bool
+	ConvertStarCount        int64
+	Entities                []MessageEntity
+	Gift                    *Gift
+	IsPrivate               bool
+	IsSaved                 bool
+	IsUpgradeSeparate       bool
+	NextTransferDate        int64
+	OwnedGiftID             string
+	PrepaidUpgradeStarCount int64
+	SendDate                int64
+	SenderUser              *User
+	Text                    string
+	TransferStarCount       int64
+	Type                    string
+	UniqueGift              *UniqueGift
+	UniqueGiftNumber        int64
+	WasRefunded             bool
+}
+
+// The MergeOwnedGift methods below implement OwnedGift: every member's fields, folded
+// into one flat struct — see MergedOwnedGift's doc for the tradeoff.
+func (v *OwnedGiftRegular) MergeOwnedGift() MergedOwnedGift {
+	return MergedOwnedGift{
+		Type:                    v.Type,
+		Gift:                    v.Gift,
+		OwnedGiftID:             v.OwnedGiftID,
+		SenderUser:              v.SenderUser,
+		SendDate:                v.SendDate,
+		Text:                    v.Text,
+		Entities:                v.Entities,
+		IsPrivate:               v.IsPrivate,
+		IsSaved:                 v.IsSaved,
+		CanBeUpgraded:           v.CanBeUpgraded,
+		WasRefunded:             v.WasRefunded,
+		ConvertStarCount:        v.ConvertStarCount,
+		PrepaidUpgradeStarCount: v.PrepaidUpgradeStarCount,
+		IsUpgradeSeparate:       v.IsUpgradeSeparate,
+		UniqueGiftNumber:        v.UniqueGiftNumber,
+	}
+}
+func (v *OwnedGiftUnique) MergeOwnedGift() MergedOwnedGift {
+	return MergedOwnedGift{
+		Type:              v.Type,
+		UniqueGift:        v.Gift,
+		OwnedGiftID:       v.OwnedGiftID,
+		SenderUser:        v.SenderUser,
+		SendDate:          v.SendDate,
+		IsSaved:           v.IsSaved,
+		CanBeTransferred:  v.CanBeTransferred,
+		TransferStarCount: v.TransferStarCount,
+		NextTransferDate:  v.NextTransferDate,
+	}
+}
+
 // This object represents the scope to which bot commands are applied. Currently, the following 7 scopes are supported:
 type BotCommandScope interface {
 	isBotCommandScope()
 	GetType() string
+	MergeBotCommandScope() MergedBotCommandScope
 }
 
 func (*BotCommandScopeDefault) isBotCommandScope()               {}
@@ -6458,10 +7206,65 @@ func (v *BotCommandScopeChat) GetType() string                  { return v.Type 
 func (v *BotCommandScopeChatAdministrators) GetType() string    { return v.Type }
 func (v *BotCommandScopeChatMember) GetType() string            { return v.Type }
 
+// MergedBotCommandScope is the union of every BotCommandScope member's fields, returned by
+// BotCommandScope.MergeBotCommandScope() — an escape hatch from type-switching for callers who just
+// want to read a field generically. A field a particular member doesn't
+// have keeps its zero value here, so it can't be told apart from a field
+// that's genuinely zero — check the discriminator field, or type-switch the
+// original interface value, when that distinction matters.
+type MergedBotCommandScope struct {
+	ChatID ChatID
+	Type   string
+	UserID int64
+}
+
+// The MergeBotCommandScope methods below implement BotCommandScope: every member's fields, folded
+// into one flat struct — see MergedBotCommandScope's doc for the tradeoff.
+func (v *BotCommandScopeDefault) MergeBotCommandScope() MergedBotCommandScope {
+	return MergedBotCommandScope{
+		Type: v.Type,
+	}
+}
+func (v *BotCommandScopeAllPrivateChats) MergeBotCommandScope() MergedBotCommandScope {
+	return MergedBotCommandScope{
+		Type: v.Type,
+	}
+}
+func (v *BotCommandScopeAllGroupChats) MergeBotCommandScope() MergedBotCommandScope {
+	return MergedBotCommandScope{
+		Type: v.Type,
+	}
+}
+func (v *BotCommandScopeAllChatAdministrators) MergeBotCommandScope() MergedBotCommandScope {
+	return MergedBotCommandScope{
+		Type: v.Type,
+	}
+}
+func (v *BotCommandScopeChat) MergeBotCommandScope() MergedBotCommandScope {
+	return MergedBotCommandScope{
+		Type:   v.Type,
+		ChatID: v.ChatID,
+	}
+}
+func (v *BotCommandScopeChatAdministrators) MergeBotCommandScope() MergedBotCommandScope {
+	return MergedBotCommandScope{
+		Type:   v.Type,
+		ChatID: v.ChatID,
+	}
+}
+func (v *BotCommandScopeChatMember) MergeBotCommandScope() MergedBotCommandScope {
+	return MergedBotCommandScope{
+		Type:   v.Type,
+		ChatID: v.ChatID,
+		UserID: v.UserID,
+	}
+}
+
 // This object describes the bot's menu button in a private chat. It should be one of If a menu button other than MenuButtonDefault is set for a private chat, then it is applied in the chat. Otherwise the default menu button is applied. By default, the menu button opens the list of bot commands.
 type MenuButton interface {
 	isMenuButton()
 	GetType() string
+	MergeMenuButton() MergedMenuButton
 }
 
 func (*MenuButtonCommands) isMenuButton() {}
@@ -6474,11 +7277,44 @@ func (v *MenuButtonCommands) GetType() string { return v.Type }
 func (v *MenuButtonWebApp) GetType() string   { return v.Type }
 func (v *MenuButtonDefault) GetType() string  { return v.Type }
 
+// MergedMenuButton is the union of every MenuButton member's fields, returned by
+// MenuButton.MergeMenuButton() — an escape hatch from type-switching for callers who just
+// want to read a field generically. A field a particular member doesn't
+// have keeps its zero value here, so it can't be told apart from a field
+// that's genuinely zero — check the discriminator field, or type-switch the
+// original interface value, when that distinction matters.
+type MergedMenuButton struct {
+	Text   string
+	Type   string
+	WebApp *WebAppInfo
+}
+
+// The MergeMenuButton methods below implement MenuButton: every member's fields, folded
+// into one flat struct — see MergedMenuButton's doc for the tradeoff.
+func (v *MenuButtonCommands) MergeMenuButton() MergedMenuButton {
+	return MergedMenuButton{
+		Type: v.Type,
+	}
+}
+func (v *MenuButtonWebApp) MergeMenuButton() MergedMenuButton {
+	return MergedMenuButton{
+		Type:   v.Type,
+		Text:   v.Text,
+		WebApp: v.WebApp,
+	}
+}
+func (v *MenuButtonDefault) MergeMenuButton() MergedMenuButton {
+	return MergedMenuButton{
+		Type: v.Type,
+	}
+}
+
 // This object describes the source of a chat boost. It can be one of
 type ChatBoostSource interface {
 	isChatBoostSource()
 	GetSource() string
 	GetUser() *User
+	MergeChatBoostSource() MergedChatBoostSource
 }
 
 func (*ChatBoostSourcePremium) isChatBoostSource()  {}
@@ -6494,6 +7330,44 @@ func (v *ChatBoostSourceGiftCode) GetUser() *User    { return v.User }
 func (v *ChatBoostSourceGiveaway) GetSource() string { return v.Source }
 func (v *ChatBoostSourceGiveaway) GetUser() *User    { return v.User }
 
+// MergedChatBoostSource is the union of every ChatBoostSource member's fields, returned by
+// ChatBoostSource.MergeChatBoostSource() — an escape hatch from type-switching for callers who just
+// want to read a field generically. A field a particular member doesn't
+// have keeps its zero value here, so it can't be told apart from a field
+// that's genuinely zero — check the discriminator field, or type-switch the
+// original interface value, when that distinction matters.
+type MergedChatBoostSource struct {
+	GiveawayMessageID int64
+	IsUnclaimed       bool
+	PrizeStarCount    int64
+	Source            string
+	User              *User
+}
+
+// The MergeChatBoostSource methods below implement ChatBoostSource: every member's fields, folded
+// into one flat struct — see MergedChatBoostSource's doc for the tradeoff.
+func (v *ChatBoostSourcePremium) MergeChatBoostSource() MergedChatBoostSource {
+	return MergedChatBoostSource{
+		Source: v.Source,
+		User:   v.User,
+	}
+}
+func (v *ChatBoostSourceGiftCode) MergeChatBoostSource() MergedChatBoostSource {
+	return MergedChatBoostSource{
+		Source: v.Source,
+		User:   v.User,
+	}
+}
+func (v *ChatBoostSourceGiveaway) MergeChatBoostSource() MergedChatBoostSource {
+	return MergedChatBoostSource{
+		Source:            v.Source,
+		GiveawayMessageID: v.GiveawayMessageID,
+		User:              v.User,
+		PrizeStarCount:    v.PrizeStarCount,
+		IsUnclaimed:       v.IsUnclaimed,
+	}
+}
+
 // This object represents the content of a media message to be sent. It should be one of
 type InputMedia interface {
 	isInputMedia()
@@ -6502,6 +7376,7 @@ type InputMedia interface {
 	GetMedia() InputFile
 	GetParseMode() string
 	GetType() string
+	MergeInputMedia() MergedInputMedia
 }
 
 func (*InputMediaAnimation) isInputMedia() {}
@@ -6538,11 +7413,122 @@ func (v *InputMediaVideo) GetCaptionEntities() []MessageEntity     { return v.Ca
 func (v *InputMediaVideo) GetMedia() InputFile                     { return v.Media }
 func (v *InputMediaVideo) GetParseMode() string                    { return v.ParseMode }
 
+// MergedInputMedia is the union of every InputMedia member's fields, returned by
+// InputMedia.MergeInputMedia() — an escape hatch from type-switching for callers who just
+// want to read a field generically. A field a particular member doesn't
+// have keeps its zero value here, so it can't be told apart from a field
+// that's genuinely zero — check the discriminator field, or type-switch the
+// original interface value, when that distinction matters.
+type MergedInputMedia struct {
+	Caption                     string
+	CaptionEntities             []MessageEntity
+	Cover                       string
+	DisableContentTypeDetection bool
+	Duration                    int64
+	HasSpoiler                  bool
+	Height                      int64
+	Media                       InputFile
+	ParseMode                   string
+	Performer                   string
+	Photo                       InputFile
+	ShowCaptionAboveMedia       bool
+	StartTimestamp              int64
+	SupportsStreaming           bool
+	Thumbnail                   InputFile
+	Title                       string
+	Type                        string
+	Width                       int64
+}
+
+// The MergeInputMedia methods below implement InputMedia: every member's fields, folded
+// into one flat struct — see MergedInputMedia's doc for the tradeoff.
+func (v *InputMediaAnimation) MergeInputMedia() MergedInputMedia {
+	return MergedInputMedia{
+		Type:                  v.Type,
+		Media:                 v.Media,
+		Thumbnail:             v.Thumbnail,
+		Caption:               v.Caption,
+		ParseMode:             v.ParseMode,
+		CaptionEntities:       v.CaptionEntities,
+		ShowCaptionAboveMedia: v.ShowCaptionAboveMedia,
+		Width:                 v.Width,
+		Height:                v.Height,
+		Duration:              v.Duration,
+		HasSpoiler:            v.HasSpoiler,
+	}
+}
+func (v *InputMediaAudio) MergeInputMedia() MergedInputMedia {
+	return MergedInputMedia{
+		Type:            v.Type,
+		Media:           v.Media,
+		Thumbnail:       v.Thumbnail,
+		Caption:         v.Caption,
+		ParseMode:       v.ParseMode,
+		CaptionEntities: v.CaptionEntities,
+		Duration:        v.Duration,
+		Performer:       v.Performer,
+		Title:           v.Title,
+	}
+}
+func (v *InputMediaDocument) MergeInputMedia() MergedInputMedia {
+	return MergedInputMedia{
+		Type:                        v.Type,
+		Media:                       v.Media,
+		Thumbnail:                   v.Thumbnail,
+		Caption:                     v.Caption,
+		ParseMode:                   v.ParseMode,
+		CaptionEntities:             v.CaptionEntities,
+		DisableContentTypeDetection: v.DisableContentTypeDetection,
+	}
+}
+func (v *InputMediaLivePhoto) MergeInputMedia() MergedInputMedia {
+	return MergedInputMedia{
+		Type:                  v.Type,
+		Media:                 v.Media,
+		Photo:                 v.Photo,
+		Caption:               v.Caption,
+		ParseMode:             v.ParseMode,
+		CaptionEntities:       v.CaptionEntities,
+		ShowCaptionAboveMedia: v.ShowCaptionAboveMedia,
+		HasSpoiler:            v.HasSpoiler,
+	}
+}
+func (v *InputMediaPhoto) MergeInputMedia() MergedInputMedia {
+	return MergedInputMedia{
+		Type:                  v.Type,
+		Media:                 v.Media,
+		Caption:               v.Caption,
+		ParseMode:             v.ParseMode,
+		CaptionEntities:       v.CaptionEntities,
+		ShowCaptionAboveMedia: v.ShowCaptionAboveMedia,
+		HasSpoiler:            v.HasSpoiler,
+	}
+}
+func (v *InputMediaVideo) MergeInputMedia() MergedInputMedia {
+	return MergedInputMedia{
+		Type:                  v.Type,
+		Media:                 v.Media,
+		Thumbnail:             v.Thumbnail,
+		Cover:                 v.Cover,
+		StartTimestamp:        v.StartTimestamp,
+		Caption:               v.Caption,
+		ParseMode:             v.ParseMode,
+		CaptionEntities:       v.CaptionEntities,
+		ShowCaptionAboveMedia: v.ShowCaptionAboveMedia,
+		Width:                 v.Width,
+		Height:                v.Height,
+		Duration:              v.Duration,
+		SupportsStreaming:     v.SupportsStreaming,
+		HasSpoiler:            v.HasSpoiler,
+	}
+}
+
 // This object describes the paid media to be sent. Currently, it can be one of
 type InputPaidMedia interface {
 	isInputPaidMedia()
 	GetMedia() string
 	GetType() string
+	MergeInputPaidMedia() MergedInputPaidMedia
 }
 
 func (*InputPaidMediaLivePhoto) isInputPaidMedia() {}
@@ -6558,10 +7544,59 @@ func (v *InputPaidMediaPhoto) GetType() string      { return v.Type }
 func (v *InputPaidMediaVideo) GetMedia() string     { return v.Media }
 func (v *InputPaidMediaVideo) GetType() string      { return v.Type }
 
+// MergedInputPaidMedia is the union of every InputPaidMedia member's fields, returned by
+// InputPaidMedia.MergeInputPaidMedia() — an escape hatch from type-switching for callers who just
+// want to read a field generically. A field a particular member doesn't
+// have keeps its zero value here, so it can't be told apart from a field
+// that's genuinely zero — check the discriminator field, or type-switch the
+// original interface value, when that distinction matters.
+type MergedInputPaidMedia struct {
+	Cover             string
+	Duration          int64
+	Height            int64
+	Media             string
+	Photo             string
+	StartTimestamp    int64
+	SupportsStreaming bool
+	Thumbnail         string
+	Type              string
+	Width             int64
+}
+
+// The MergeInputPaidMedia methods below implement InputPaidMedia: every member's fields, folded
+// into one flat struct — see MergedInputPaidMedia's doc for the tradeoff.
+func (v *InputPaidMediaLivePhoto) MergeInputPaidMedia() MergedInputPaidMedia {
+	return MergedInputPaidMedia{
+		Type:  v.Type,
+		Media: v.Media,
+		Photo: v.Photo,
+	}
+}
+func (v *InputPaidMediaPhoto) MergeInputPaidMedia() MergedInputPaidMedia {
+	return MergedInputPaidMedia{
+		Type:  v.Type,
+		Media: v.Media,
+	}
+}
+func (v *InputPaidMediaVideo) MergeInputPaidMedia() MergedInputPaidMedia {
+	return MergedInputPaidMedia{
+		Type:              v.Type,
+		Media:             v.Media,
+		Thumbnail:         v.Thumbnail,
+		Cover:             v.Cover,
+		StartTimestamp:    v.StartTimestamp,
+		Width:             v.Width,
+		Height:            v.Height,
+		Duration:          v.Duration,
+		SupportsStreaming: v.SupportsStreaming,
+	}
+}
+
 // This object describes a profile photo to set. Currently, it can be one of
 type InputProfilePhoto interface {
 	isInputProfilePhoto()
 	GetType() string
+	MergeInputProfilePhoto() MergedInputProfilePhoto
 }
 
 func (*InputProfilePhotoStatic) isInputProfilePhoto()   {}
@@ -6572,10 +7607,40 @@ func (*InputProfilePhotoAnimated) isInputProfilePhoto() {}
 func (v *InputProfilePhotoStatic) GetType() string   { return v.Type }
 func (v *InputProfilePhotoAnimated) GetType() string { return v.Type }
 
+// MergedInputProfilePhoto is the union of every InputProfilePhoto member's fields, returned by
+// InputProfilePhoto.MergeInputProfilePhoto() — an escape hatch from type-switching for callers who just
+// want to read a field generically. A field a particular member doesn't
+// have keeps its zero value here, so it can't be told apart from a field
+// that's genuinely zero — check the discriminator field, or type-switch the
+// original interface value, when that distinction matters.
+type MergedInputProfilePhoto struct {
+	Animation          string
+	MainFrameTimestamp float64
+	Photo              string
+	Type               string
+}
+
+// The MergeInputProfilePhoto methods below implement InputProfilePhoto: every member's fields, folded
+// into one flat struct — see MergedInputProfilePhoto's doc for the tradeoff.
+func (v *InputProfilePhotoStatic) MergeInputProfilePhoto() MergedInputProfilePhoto {
+	return MergedInputProfilePhoto{
+		Type:  v.Type,
+		Photo: v.Photo,
+	}
+}
+func (v *InputProfilePhotoAnimated) MergeInputProfilePhoto() MergedInputProfilePhoto {
+	return MergedInputProfilePhoto{
+		Type:               v.Type,
+		Animation:          v.Animation,
+		MainFrameTimestamp: v.MainFrameTimestamp,
+	}
+}
+
 // This object describes the content of a story to post. Currently, it can be one of
 type InputStoryContent interface {
 	isInputStoryContent()
 	GetType() string
+	MergeInputStoryContent() MergedInputStoryContent
 }
 
 func (*InputStoryContentPhoto) isInputStoryContent() {}
@@ -6586,10 +7651,44 @@ func (*InputStoryContentVideo) isInputStoryContent() {}
 func (v *InputStoryContentPhoto) GetType() string { return v.Type }
 func (v *InputStoryContentVideo) GetType() string { return v.Type }
 
+// MergedInputStoryContent is the union of every InputStoryContent member's fields, returned by
+// InputStoryContent.MergeInputStoryContent() — an escape hatch from type-switching for callers who just
+// want to read a field generically. A field a particular member doesn't
+// have keeps its zero value here, so it can't be told apart from a field
+// that's genuinely zero — check the discriminator field, or type-switch the
+// original interface value, when that distinction matters.
+type MergedInputStoryContent struct {
+	CoverFrameTimestamp float64
+	Duration            float64
+	IsAnimation         bool
+	Photo               string
+	Type                string
+	Video               string
+}
+
+// The MergeInputStoryContent methods below implement InputStoryContent: every member's fields, folded
+// into one flat struct — see MergedInputStoryContent's doc for the tradeoff.
+func (v *InputStoryContentPhoto) MergeInputStoryContent() MergedInputStoryContent {
+	return MergedInputStoryContent{
+		Type:  v.Type,
+		Photo: v.Photo,
+	}
+}
+func (v *InputStoryContentVideo) MergeInputStoryContent() MergedInputStoryContent {
+	return MergedInputStoryContent{
+		Type:                v.Type,
+		Video:               v.Video,
+		Duration:            v.Duration,
+		CoverFrameTimestamp: v.CoverFrameTimestamp,
+		IsAnimation:         v.IsAnimation,
+	}
+}
+
 // This object represents a rich formatted text. Currently, it can be either a String for plain text, an Array of RichText, or any of the following types:
 type RichText interface {
 	isRichText()
 	GetType() string
+	MergeRichText() MergedRichText
 }
 
 func (*RichTextBold) isRichText()                   {}
@@ -6646,10 +7745,207 @@ func (v *RichTextAnchorLink) GetType() string             { return v.Type }
 func (v *RichTextReference) GetType() string              { return v.Type }
 func (v *RichTextReferenceLink) GetType() string          { return v.Type }
 
+// MergedRichText is the union of every RichText member's fields, returned by
+// RichText.MergeRichText() — an escape hatch from type-switching for callers who just
+// want to read a field generically. A field a particular member doesn't
+// have keeps its zero value here, so it can't be told apart from a field
+// that's genuinely zero — check the discriminator field, or type-switch the
+// original interface value, when that distinction matters.
+type MergedRichText struct {
+	AlternativeText string
+	AnchorName      string
+	BankCardNumber  string
+	BotCommand      string
+	Cashtag         string
+	CustomEmojiID   string
+	DateTimeFormat  string
+	EmailAddress    string
+	Expression      string
+	Hashtag         string
+	Name            string
+	PhoneNumber     string
+	ReferenceName   string
+	Text            RichText
+	Type            string
+	URL             string
+	UnixTime        int64
+	User            *User
+	Username        string
+}
+
+// The MergeRichText methods below implement RichText: every member's fields, folded
+// into one flat struct — see MergedRichText's doc for the tradeoff.
+func (v *RichTextBold) MergeRichText() MergedRichText {
+	return MergedRichText{
+		Type: v.Type,
+		Text: v.Text,
+	}
+}
+func (v *RichTextItalic) MergeRichText() MergedRichText {
+	return MergedRichText{
+		Type: v.Type,
+		Text: v.Text,
+	}
+}
+func (v *RichTextUnderline) MergeRichText() MergedRichText {
+	return MergedRichText{
+		Type: v.Type,
+		Text: v.Text,
+	}
+}
+func (v *RichTextStrikethrough) MergeRichText() MergedRichText {
+	return MergedRichText{
+		Type: v.Type,
+		Text: v.Text,
+	}
+}
+func (v *RichTextSpoiler) MergeRichText() MergedRichText {
+	return MergedRichText{
+		Type: v.Type,
+		Text: v.Text,
+	}
+}
+func (v *RichTextDateTime) MergeRichText() MergedRichText {
+	return MergedRichText{
+		Type:           v.Type,
+		Text:           v.Text,
+		UnixTime:       v.UnixTime,
+		DateTimeFormat: v.DateTimeFormat,
+	}
+}
+func (v *RichTextTextMention) MergeRichText() MergedRichText {
+	return MergedRichText{
+		Type: v.Type,
+		Text: v.Text,
+		User: v.User,
+	}
+}
+func (v *RichTextSubscript) MergeRichText() MergedRichText {
+	return MergedRichText{
+		Type: v.Type,
+		Text: v.Text,
+	}
+}
+func (v *RichTextSuperscript) MergeRichText() MergedRichText {
+	return MergedRichText{
+		Type: v.Type,
+		Text: v.Text,
+	}
+}
+func (v *RichTextMarked) MergeRichText() MergedRichText {
+	return MergedRichText{
+		Type: v.Type,
+		Text: v.Text,
+	}
+}
+func (v *RichTextCode) MergeRichText() MergedRichText {
+	return MergedRichText{
+		Type: v.Type,
+		Text: v.Text,
+	}
+}
+func (v *RichTextCustomEmoji) MergeRichText() MergedRichText {
+	return MergedRichText{
+		Type:            v.Type,
+		CustomEmojiID:   v.CustomEmojiID,
+		AlternativeText: v.AlternativeText,
+	}
+}
+func (v *RichTextMathematicalExpression) MergeRichText() MergedRichText {
+	return MergedRichText{
+		Type:       v.Type,
+		Expression: v.Expression,
+	}
+}
+func (v *RichTextURL) MergeRichText() MergedRichText {
+	return MergedRichText{
+		Type: v.Type,
+		Text: v.Text,
+		URL:  v.URL,
+	}
+}
+func (v *RichTextEmailAddress) MergeRichText() MergedRichText {
+	return MergedRichText{
+		Type:         v.Type,
+		Text:         v.Text,
+		EmailAddress: v.EmailAddress,
+	}
+}
+func (v *RichTextPhoneNumber) MergeRichText() MergedRichText {
+	return MergedRichText{
+		Type:        v.Type,
+		Text:        v.Text,
+		PhoneNumber: v.PhoneNumber,
+	}
+}
+func (v *RichTextBankCardNumber) MergeRichText() MergedRichText {
+	return MergedRichText{
+		Type:           v.Type,
+		Text:           v.Text,
+		BankCardNumber: v.BankCardNumber,
+	}
+}
+func (v *RichTextMention) MergeRichText() MergedRichText {
+	return MergedRichText{
+		Type:     v.Type,
+		Text:     v.Text,
+		Username: v.Username,
+	}
+}
+func (v *RichTextHashtag) MergeRichText() MergedRichText {
+	return MergedRichText{
+		Type:    v.Type,
+		Text:    v.Text,
+		Hashtag: v.Hashtag,
+	}
+}
+func (v *RichTextCashtag) MergeRichText() MergedRichText {
+	return MergedRichText{
+		Type:    v.Type,
+		Text:    v.Text,
+		Cashtag: v.Cashtag,
+	}
+}
+func (v *RichTextBotCommand) MergeRichText() MergedRichText {
+	return MergedRichText{
+		Type:       v.Type,
+		Text:       v.Text,
+		BotCommand: v.BotCommand,
+	}
+}
+func (v *RichTextAnchor) MergeRichText() MergedRichText {
+	return MergedRichText{
+		Type: v.Type,
+		Name: v.Name,
+	}
+}
+func (v *RichTextAnchorLink) MergeRichText() MergedRichText {
+	return MergedRichText{
+		Type:       v.Type,
+		Text:       v.Text,
+		AnchorName: v.AnchorName,
+	}
+}
+func (v *RichTextReference) MergeRichText() MergedRichText {
+	return MergedRichText{
+		Type: v.Type,
+		Text: v.Text,
+		Name: v.Name,
+	}
+}
+func (v *RichTextReferenceLink) MergeRichText() MergedRichText {
+	return MergedRichText{
+		Type:          v.Type,
+		Text:          v.Text,
+		ReferenceName: v.ReferenceName,
+	}
+}
+
 // This object represents a block in a rich formatted message. Currently, it can be any of the following types:
 type RichBlock interface {
 	isRichBlock()
 	GetType() string
+	MergeRichBlock() MergedRichBlock
 }
 
 func (*RichBlockParagraph) isRichBlock()              {}
@@ -6698,12 +7994,199 @@ func (v *RichBlockVideo) GetType() string                  { return v.Type }
 func (v *RichBlockVoiceNote) GetType() string              { return v.Type }
 func (v *RichBlockThinking) GetType() string               { return v.Type }
 
+// MergedRichBlock is the union of every RichBlock member's fields, returned by
+// RichBlock.MergeRichBlock() — an escape hatch from type-switching for callers who just
+// want to read a field generically. A field a particular member doesn't
+// have keeps its zero value here, so it can't be told apart from a field
+// that's genuinely zero — check the discriminator field, or type-switch the
+// original interface value, when that distinction matters.
+type MergedRichBlock struct {
+	Animation    *Animation
+	Audio        *Audio
+	Blocks       []RichBlock
+	Caption      *RichBlockCaption
+	Cells        [][]RichBlockTableCell
+	Credit       RichText
+	Expression   string
+	HasSpoiler   bool
+	Height       int64
+	IsBordered   bool
+	IsOpen       bool
+	IsStriped    bool
+	Items        []RichBlockListItem
+	Language     string
+	Location     *Location
+	Name         string
+	Photo        []PhotoSize
+	Size         int64
+	Summary      RichText
+	TableCaption RichText
+	Text         RichText
+	Type         string
+	Video        *Video
+	VoiceNote    *Voice
+	Width        int64
+	Zoom         int64
+}
+
+// The MergeRichBlock methods below implement RichBlock: every member's fields, folded
+// into one flat struct — see MergedRichBlock's doc for the tradeoff.
+func (v *RichBlockParagraph) MergeRichBlock() MergedRichBlock {
+	return MergedRichBlock{
+		Type: v.Type,
+		Text: v.Text,
+	}
+}
+func (v *RichBlockSectionHeading) MergeRichBlock() MergedRichBlock {
+	return MergedRichBlock{
+		Type: v.Type,
+		Text: v.Text,
+		Size: v.Size,
+	}
+}
+func (v *RichBlockPreformatted) MergeRichBlock() MergedRichBlock {
+	return MergedRichBlock{
+		Type:     v.Type,
+		Text:     v.Text,
+		Language: v.Language,
+	}
+}
+func (v *RichBlockFooter) MergeRichBlock() MergedRichBlock {
+	return MergedRichBlock{
+		Type: v.Type,
+		Text: v.Text,
+	}
+}
+func (v *RichBlockDivider) MergeRichBlock() MergedRichBlock {
+	return MergedRichBlock{
+		Type: v.Type,
+	}
+}
+func (v *RichBlockMathematicalExpression) MergeRichBlock() MergedRichBlock {
+	return MergedRichBlock{
+		Type:       v.Type,
+		Expression: v.Expression,
+	}
+}
+func (v *RichBlockAnchor) MergeRichBlock() MergedRichBlock {
+	return MergedRichBlock{
+		Type: v.Type,
+		Name: v.Name,
+	}
+}
+func (v *RichBlockList) MergeRichBlock() MergedRichBlock {
+	return MergedRichBlock{
+		Type:  v.Type,
+		Items: v.Items,
+	}
+}
+func (v *RichBlockBlockQuotation) MergeRichBlock() MergedRichBlock {
+	return MergedRichBlock{
+		Type:   v.Type,
+		Blocks: v.Blocks,
+		Credit: v.Credit,
+	}
+}
+func (v *RichBlockPullQuotation) MergeRichBlock() MergedRichBlock {
+	return MergedRichBlock{
+		Type:   v.Type,
+		Text:   v.Text,
+		Credit: v.Credit,
+	}
+}
+func (v *RichBlockCollage) MergeRichBlock() MergedRichBlock {
+	return MergedRichBlock{
+		Type:    v.Type,
+		Blocks:  v.Blocks,
+		Caption: v.Caption,
+	}
+}
+func (v *RichBlockSlideshow) MergeRichBlock() MergedRichBlock {
+	return MergedRichBlock{
+		Type:    v.Type,
+		Blocks:  v.Blocks,
+		Caption: v.Caption,
+	}
+}
+func (v *RichBlockTable) MergeRichBlock() MergedRichBlock {
+	return MergedRichBlock{
+		Type:         v.Type,
+		Cells:        v.Cells,
+		IsBordered:   v.IsBordered,
+		IsStriped:    v.IsStriped,
+		TableCaption: v.Caption,
+	}
+}
+func (v *RichBlockDetails) MergeRichBlock() MergedRichBlock {
+	return MergedRichBlock{
+		Type:    v.Type,
+		Summary: v.Summary,
+		Blocks:  v.Blocks,
+		IsOpen:  v.IsOpen,
+	}
+}
+func (v *RichBlockMap) MergeRichBlock() MergedRichBlock {
+	return MergedRichBlock{
+		Type:     v.Type,
+		Location: v.Location,
+		Zoom:     v.Zoom,
+		Width:    v.Width,
+		Height:   v.Height,
+		Caption:  v.Caption,
+	}
+}
+func (v *RichBlockAnimation) MergeRichBlock() MergedRichBlock {
+	return MergedRichBlock{
+		Type:       v.Type,
+		Animation:  v.Animation,
+		HasSpoiler: v.HasSpoiler,
+		Caption:    v.Caption,
+	}
+}
+func (v *RichBlockAudio) MergeRichBlock() MergedRichBlock {
+	return MergedRichBlock{
+		Type:    v.Type,
+		Audio:   v.Audio,
+		Caption: v.Caption,
+	}
+}
+func (v *RichBlockPhoto) MergeRichBlock() MergedRichBlock {
+	return MergedRichBlock{
+		Type:       v.Type,
+		Photo:      v.Photo,
+		HasSpoiler: v.HasSpoiler,
+		Caption:    v.Caption,
+	}
+}
+func (v *RichBlockVideo) MergeRichBlock() MergedRichBlock {
+	return MergedRichBlock{
+		Type:       v.Type,
+		Video:      v.Video,
+		HasSpoiler: v.HasSpoiler,
+		Caption:    v.Caption,
+	}
+}
+func (v *RichBlockVoiceNote) MergeRichBlock() MergedRichBlock {
+	return MergedRichBlock{
+		Type:      v.Type,
+		VoiceNote: v.VoiceNote,
+		Caption:   v.Caption,
+	}
+}
+func (v *RichBlockThinking) MergeRichBlock() MergedRichBlock {
+	return MergedRichBlock{
+		Type: v.Type,
+		Text: v.Text,
+	}
+}
+
 // This object represents one result of an inline query. Telegram clients currently support results of the following 20 types: Note: All URLs passed in inline query results will be available to end users and therefore must be assumed to be public.
 type InlineQueryResult interface {
 	isInlineQueryResult()
 	GetID() string
 	GetReplyMarkup() *InlineKeyboardMarkup
 	GetType() string
+	MergeInlineQueryResult() MergedInlineQueryResult
 }
 
 func (*InlineQueryResultCachedAudio) isInlineQueryResult()    {}
@@ -6794,9 +8277,386 @@ func (v *InlineQueryResultVoice) GetID() string                                 
 func (v *InlineQueryResultVoice) GetReplyMarkup() *InlineKeyboardMarkup         { return v.ReplyMarkup }
 func (v *InlineQueryResultVoice) GetType() string                               { return v.Type }
 
+// MergedInlineQueryResult is the union of every InlineQueryResult member's fields, returned by
+// InlineQueryResult.MergeInlineQueryResult() — an escape hatch from type-switching for callers who just
+// want to read a field generically. A field a particular member doesn't
+// have keeps its zero value here, so it can't be told apart from a field
+// that's genuinely zero — check the discriminator field, or type-switch the
+// original interface value, when that distinction matters.
+type MergedInlineQueryResult struct {
+	Address               string
+	AudioDuration         int64
+	AudioFileID           string
+	AudioURL              string
+	Caption               string
+	CaptionEntities       []MessageEntity
+	Description           string
+	DocumentFileID        string
+	DocumentURL           string
+	FirstName             string
+	FoursquareID          string
+	FoursquareType        string
+	GameShortName         string
+	GifDuration           int64
+	GifFileID             string
+	GifHeight             int64
+	GifURL                string
+	GifWidth              int64
+	GooglePlaceID         string
+	GooglePlaceType       string
+	Heading               int64
+	HorizontalAccuracy    float64
+	ID                    string
+	InputMessageContent   InputMessageContent
+	LastName              string
+	Latitude              float64
+	LivePeriod            int64
+	Longitude             float64
+	MimeType              string
+	Mpeg4Duration         int64
+	Mpeg4FileID           string
+	Mpeg4Height           int64
+	Mpeg4URL              string
+	Mpeg4Width            int64
+	ParseMode             string
+	Performer             string
+	PhoneNumber           string
+	PhotoFileID           string
+	PhotoHeight           int64
+	PhotoURL              string
+	PhotoWidth            int64
+	ProximityAlertRadius  int64
+	ReplyMarkup           *InlineKeyboardMarkup
+	ShowCaptionAboveMedia bool
+	StickerFileID         string
+	ThumbnailHeight       int64
+	ThumbnailMimeType     string
+	ThumbnailURL          string
+	ThumbnailWidth        int64
+	Title                 string
+	Type                  string
+	URL                   string
+	Vcard                 string
+	VideoDuration         int64
+	VideoFileID           string
+	VideoHeight           int64
+	VideoURL              string
+	VideoWidth            int64
+	VoiceDuration         int64
+	VoiceFileID           string
+	VoiceURL              string
+}
+
+// The MergeInlineQueryResult methods below implement InlineQueryResult: every member's fields, folded
+// into one flat struct — see MergedInlineQueryResult's doc for the tradeoff.
+func (v *InlineQueryResultCachedAudio) MergeInlineQueryResult() MergedInlineQueryResult {
+	return MergedInlineQueryResult{
+		Type:                v.Type,
+		ID:                  v.ID,
+		AudioFileID:         v.AudioFileID,
+		Caption:             v.Caption,
+		ParseMode:           v.ParseMode,
+		CaptionEntities:     v.CaptionEntities,
+		ReplyMarkup:         v.ReplyMarkup,
+		InputMessageContent: v.InputMessageContent,
+	}
+}
+func (v *InlineQueryResultCachedDocument) MergeInlineQueryResult() MergedInlineQueryResult {
+	return MergedInlineQueryResult{
+		Type:                v.Type,
+		ID:                  v.ID,
+		Title:               v.Title,
+		DocumentFileID:      v.DocumentFileID,
+		Description:         v.Description,
+		Caption:             v.Caption,
+		ParseMode:           v.ParseMode,
+		CaptionEntities:     v.CaptionEntities,
+		ReplyMarkup:         v.ReplyMarkup,
+		InputMessageContent: v.InputMessageContent,
+	}
+}
+func (v *InlineQueryResultCachedGif) MergeInlineQueryResult() MergedInlineQueryResult {
+	return MergedInlineQueryResult{
+		Type:                  v.Type,
+		ID:                    v.ID,
+		GifFileID:             v.GifFileID,
+		Title:                 v.Title,
+		Caption:               v.Caption,
+		ParseMode:             v.ParseMode,
+		CaptionEntities:       v.CaptionEntities,
+		ShowCaptionAboveMedia: v.ShowCaptionAboveMedia,
+		ReplyMarkup:           v.ReplyMarkup,
+		InputMessageContent:   v.InputMessageContent,
+	}
+}
+func (v *InlineQueryResultCachedMpeg4Gif) MergeInlineQueryResult() MergedInlineQueryResult {
+	return MergedInlineQueryResult{
+		Type:                  v.Type,
+		ID:                    v.ID,
+		Mpeg4FileID:           v.Mpeg4FileID,
+		Title:                 v.Title,
+		Caption:               v.Caption,
+		ParseMode:             v.ParseMode,
+		CaptionEntities:       v.CaptionEntities,
+		ShowCaptionAboveMedia: v.ShowCaptionAboveMedia,
+		ReplyMarkup:           v.ReplyMarkup,
+		InputMessageContent:   v.InputMessageContent,
+	}
+}
+func (v *InlineQueryResultCachedPhoto) MergeInlineQueryResult() MergedInlineQueryResult {
+	return MergedInlineQueryResult{
+		Type:                  v.Type,
+		ID:                    v.ID,
+		PhotoFileID:           v.PhotoFileID,
+		Title:                 v.Title,
+		Description:           v.Description,
+		Caption:               v.Caption,
+		ParseMode:             v.ParseMode,
+		CaptionEntities:       v.CaptionEntities,
+		ShowCaptionAboveMedia: v.ShowCaptionAboveMedia,
+		ReplyMarkup:           v.ReplyMarkup,
+		InputMessageContent:   v.InputMessageContent,
+	}
+}
+func (v *InlineQueryResultCachedSticker) MergeInlineQueryResult() MergedInlineQueryResult {
+	return MergedInlineQueryResult{
+		Type:                v.Type,
+		ID:                  v.ID,
+		StickerFileID:       v.StickerFileID,
+		ReplyMarkup:         v.ReplyMarkup,
+		InputMessageContent: v.InputMessageContent,
+	}
+}
+func (v *InlineQueryResultCachedVideo) MergeInlineQueryResult() MergedInlineQueryResult {
+	return MergedInlineQueryResult{
+		Type:                  v.Type,
+		ID:                    v.ID,
+		VideoFileID:           v.VideoFileID,
+		Title:                 v.Title,
+		Description:           v.Description,
+		Caption:               v.Caption,
+		ParseMode:             v.ParseMode,
+		CaptionEntities:       v.CaptionEntities,
+		ShowCaptionAboveMedia: v.ShowCaptionAboveMedia,
+		ReplyMarkup:           v.ReplyMarkup,
+		InputMessageContent:   v.InputMessageContent,
+	}
+}
+func (v *InlineQueryResultCachedVoice) MergeInlineQueryResult() MergedInlineQueryResult {
+	return MergedInlineQueryResult{
+		Type:                v.Type,
+		ID:                  v.ID,
+		VoiceFileID:         v.VoiceFileID,
+		Title:               v.Title,
+		Caption:             v.Caption,
+		ParseMode:           v.ParseMode,
+		CaptionEntities:     v.CaptionEntities,
+		ReplyMarkup:         v.ReplyMarkup,
+		InputMessageContent: v.InputMessageContent,
+	}
+}
+func (v *InlineQueryResultArticle) MergeInlineQueryResult() MergedInlineQueryResult {
+	return MergedInlineQueryResult{
+		Type:                v.Type,
+		ID:                  v.ID,
+		Title:               v.Title,
+		InputMessageContent: v.InputMessageContent,
+		ReplyMarkup:         v.ReplyMarkup,
+		URL:                 v.URL,
+		Description:         v.Description,
+		ThumbnailURL:        v.ThumbnailURL,
+		ThumbnailWidth:      v.ThumbnailWidth,
+		ThumbnailHeight:     v.ThumbnailHeight,
+	}
+}
+func (v *InlineQueryResultAudio) MergeInlineQueryResult() MergedInlineQueryResult {
+	return MergedInlineQueryResult{
+		Type:                v.Type,
+		ID:                  v.ID,
+		AudioURL:            v.AudioURL,
+		Title:               v.Title,
+		Caption:             v.Caption,
+		ParseMode:           v.ParseMode,
+		CaptionEntities:     v.CaptionEntities,
+		Performer:           v.Performer,
+		AudioDuration:       v.AudioDuration,
+		ReplyMarkup:         v.ReplyMarkup,
+		InputMessageContent: v.InputMessageContent,
+	}
+}
+func (v *InlineQueryResultContact) MergeInlineQueryResult() MergedInlineQueryResult {
+	return MergedInlineQueryResult{
+		Type:                v.Type,
+		ID:                  v.ID,
+		PhoneNumber:         v.PhoneNumber,
+		FirstName:           v.FirstName,
+		LastName:            v.LastName,
+		Vcard:               v.Vcard,
+		ReplyMarkup:         v.ReplyMarkup,
+		InputMessageContent: v.InputMessageContent,
+		ThumbnailURL:        v.ThumbnailURL,
+		ThumbnailWidth:      v.ThumbnailWidth,
+		ThumbnailHeight:     v.ThumbnailHeight,
+	}
+}
+func (v *InlineQueryResultGame) MergeInlineQueryResult() MergedInlineQueryResult {
+	return MergedInlineQueryResult{
+		Type:          v.Type,
+		ID:            v.ID,
+		GameShortName: v.GameShortName,
+		ReplyMarkup:   v.ReplyMarkup,
+	}
+}
+func (v *InlineQueryResultDocument) MergeInlineQueryResult() MergedInlineQueryResult {
+	return MergedInlineQueryResult{
+		Type:                v.Type,
+		ID:                  v.ID,
+		Title:               v.Title,
+		Caption:             v.Caption,
+		ParseMode:           v.ParseMode,
+		CaptionEntities:     v.CaptionEntities,
+		DocumentURL:         v.DocumentURL,
+		MimeType:            v.MimeType,
+		Description:         v.Description,
+		ReplyMarkup:         v.ReplyMarkup,
+		InputMessageContent: v.InputMessageContent,
+		ThumbnailURL:        v.ThumbnailURL,
+		ThumbnailWidth:      v.ThumbnailWidth,
+		ThumbnailHeight:     v.ThumbnailHeight,
+	}
+}
+func (v *InlineQueryResultGif) MergeInlineQueryResult() MergedInlineQueryResult {
+	return MergedInlineQueryResult{
+		Type:                  v.Type,
+		ID:                    v.ID,
+		GifURL:                v.GifURL,
+		GifWidth:              v.GifWidth,
+		GifHeight:             v.GifHeight,
+		GifDuration:           v.GifDuration,
+		ThumbnailURL:          v.ThumbnailURL,
+		ThumbnailMimeType:     v.ThumbnailMimeType,
+		Title:                 v.Title,
+		Caption:               v.Caption,
+		ParseMode:             v.ParseMode,
+		CaptionEntities:       v.CaptionEntities,
+		ShowCaptionAboveMedia: v.ShowCaptionAboveMedia,
+		ReplyMarkup:           v.ReplyMarkup,
+		InputMessageContent:   v.InputMessageContent,
+	}
+}
+func (v *InlineQueryResultLocation) MergeInlineQueryResult() MergedInlineQueryResult {
+	return MergedInlineQueryResult{
+		Type:                 v.Type,
+		ID:                   v.ID,
+		Latitude:             v.Latitude,
+		Longitude:            v.Longitude,
+		Title:                v.Title,
+		HorizontalAccuracy:   v.HorizontalAccuracy,
+		LivePeriod:           v.LivePeriod,
+		Heading:              v.Heading,
+		ProximityAlertRadius: v.ProximityAlertRadius,
+		ReplyMarkup:          v.ReplyMarkup,
+		InputMessageContent:  v.InputMessageContent,
+		ThumbnailURL:         v.ThumbnailURL,
+		ThumbnailWidth:       v.ThumbnailWidth,
+		ThumbnailHeight:      v.ThumbnailHeight,
+	}
+}
+func (v *InlineQueryResultMpeg4Gif) MergeInlineQueryResult() MergedInlineQueryResult {
+	return MergedInlineQueryResult{
+		Type:                  v.Type,
+		ID:                    v.ID,
+		Mpeg4URL:              v.Mpeg4URL,
+		Mpeg4Width:            v.Mpeg4Width,
+		Mpeg4Height:           v.Mpeg4Height,
+		Mpeg4Duration:         v.Mpeg4Duration,
+		ThumbnailURL:          v.ThumbnailURL,
+		ThumbnailMimeType:     v.ThumbnailMimeType,
+		Title:                 v.Title,
+		Caption:               v.Caption,
+		ParseMode:             v.ParseMode,
+		CaptionEntities:       v.CaptionEntities,
+		ShowCaptionAboveMedia: v.ShowCaptionAboveMedia,
+		ReplyMarkup:           v.ReplyMarkup,
+		InputMessageContent:   v.InputMessageContent,
+	}
+}
+func (v *InlineQueryResultPhoto) MergeInlineQueryResult() MergedInlineQueryResult {
+	return MergedInlineQueryResult{
+		Type:                  v.Type,
+		ID:                    v.ID,
+		PhotoURL:              v.PhotoURL,
+		ThumbnailURL:          v.ThumbnailURL,
+		PhotoWidth:            v.PhotoWidth,
+		PhotoHeight:           v.PhotoHeight,
+		Title:                 v.Title,
+		Description:           v.Description,
+		Caption:               v.Caption,
+		ParseMode:             v.ParseMode,
+		CaptionEntities:       v.CaptionEntities,
+		ShowCaptionAboveMedia: v.ShowCaptionAboveMedia,
+		ReplyMarkup:           v.ReplyMarkup,
+		InputMessageContent:   v.InputMessageContent,
+	}
+}
+func (v *InlineQueryResultVenue) MergeInlineQueryResult() MergedInlineQueryResult {
+	return MergedInlineQueryResult{
+		Type:                v.Type,
+		ID:                  v.ID,
+		Latitude:            v.Latitude,
+		Longitude:           v.Longitude,
+		Title:               v.Title,
+		Address:             v.Address,
+		FoursquareID:        v.FoursquareID,
+		FoursquareType:      v.FoursquareType,
+		GooglePlaceID:       v.GooglePlaceID,
+		GooglePlaceType:     v.GooglePlaceType,
+		ReplyMarkup:         v.ReplyMarkup,
+		InputMessageContent: v.InputMessageContent,
+		ThumbnailURL:        v.ThumbnailURL,
+		ThumbnailWidth:      v.ThumbnailWidth,
+		ThumbnailHeight:     v.ThumbnailHeight,
+	}
+}
+func (v *InlineQueryResultVideo) MergeInlineQueryResult() MergedInlineQueryResult {
+	return MergedInlineQueryResult{
+		Type:                  v.Type,
+		ID:                    v.ID,
+		VideoURL:              v.VideoURL,
+		MimeType:              v.MimeType,
+		ThumbnailURL:          v.ThumbnailURL,
+		Title:                 v.Title,
+		Caption:               v.Caption,
+		ParseMode:             v.ParseMode,
+		CaptionEntities:       v.CaptionEntities,
+		ShowCaptionAboveMedia: v.ShowCaptionAboveMedia,
+		VideoWidth:            v.VideoWidth,
+		VideoHeight:           v.VideoHeight,
+		VideoDuration:         v.VideoDuration,
+		Description:           v.Description,
+		ReplyMarkup:           v.ReplyMarkup,
+		InputMessageContent:   v.InputMessageContent,
+	}
+}
+func (v *InlineQueryResultVoice) MergeInlineQueryResult() MergedInlineQueryResult {
+	return MergedInlineQueryResult{
+		Type:                v.Type,
+		ID:                  v.ID,
+		VoiceURL:            v.VoiceURL,
+		Title:               v.Title,
+		Caption:             v.Caption,
+		ParseMode:           v.ParseMode,
+		CaptionEntities:     v.CaptionEntities,
+		VoiceDuration:       v.VoiceDuration,
+		ReplyMarkup:         v.ReplyMarkup,
+		InputMessageContent: v.InputMessageContent,
+	}
+}
+
 // This object represents the content of a message to be sent as a result of an inline query. Telegram clients currently support the following types:
 type InputMessageContent interface {
 	isInputMessageContent()
+	MergeInputMessageContent() MergedInputMessageContent
 }
 
 func (*InputTextMessageContent) isInputMessageContent()     {}
@@ -6806,10 +8666,130 @@ func (*InputVenueMessageContent) isInputMessageContent()    {}
 func (*InputContactMessageContent) isInputMessageContent()  {}
 func (*InputInvoiceMessageContent) isInputMessageContent()  {}
 
+// MergedInputMessageContent is the union of every InputMessageContent member's fields, returned by
+// InputMessageContent.MergeInputMessageContent() — an escape hatch from type-switching for callers who just
+// want to read a field generically. A field a particular member doesn't
+// have keeps its zero value here, so it can't be told apart from a field
+// that's genuinely zero — check the discriminator field, or type-switch the
+// original interface value, when that distinction matters.
+type MergedInputMessageContent struct {
+	Address                   string
+	Currency                  string
+	Description               string
+	Entities                  []MessageEntity
+	FirstName                 string
+	FoursquareID              string
+	FoursquareType            string
+	GooglePlaceID             string
+	GooglePlaceType           string
+	Heading                   int64
+	HorizontalAccuracy        float64
+	IsFlexible                bool
+	LastName                  string
+	Latitude                  float64
+	LinkPreviewOptions        *LinkPreviewOptions
+	LivePeriod                int64
+	Longitude                 float64
+	MaxTipAmount              int64
+	MessageText               string
+	NeedEmail                 bool
+	NeedName                  bool
+	NeedPhoneNumber           bool
+	NeedShippingAddress       bool
+	ParseMode                 string
+	Payload                   string
+	PhoneNumber               string
+	PhotoHeight               int64
+	PhotoSize                 int64
+	PhotoURL                  string
+	PhotoWidth                int64
+	Prices                    []LabeledPrice
+	ProviderData              string
+	ProviderToken             string
+	ProximityAlertRadius      int64
+	RichMessage               *InputRichMessage
+	SendEmailToProvider       bool
+	SendPhoneNumberToProvider bool
+	SuggestedTipAmounts       []int64
+	Title                     string
+	Vcard                     string
+}
+
+// The MergeInputMessageContent methods below implement InputMessageContent: every member's fields, folded
+// into one flat struct — see MergedInputMessageContent's doc for the tradeoff.
+func (v *InputTextMessageContent) MergeInputMessageContent() MergedInputMessageContent {
+	return MergedInputMessageContent{
+		MessageText:        v.MessageText,
+		ParseMode:          v.ParseMode,
+		Entities:           v.Entities,
+		LinkPreviewOptions: v.LinkPreviewOptions,
+	}
+}
+func (v *InputRichMessageContent) MergeInputMessageContent() MergedInputMessageContent {
+	return MergedInputMessageContent{
+		RichMessage: v.RichMessage,
+	}
+}
+func (v *InputLocationMessageContent) MergeInputMessageContent() MergedInputMessageContent {
+	return MergedInputMessageContent{
+		Latitude:             v.Latitude,
+		Longitude:            v.Longitude,
+		HorizontalAccuracy:   v.HorizontalAccuracy,
+		LivePeriod:           v.LivePeriod,
+		Heading:              v.Heading,
+		ProximityAlertRadius: v.ProximityAlertRadius,
+	}
+}
+func (v *InputVenueMessageContent) MergeInputMessageContent() MergedInputMessageContent {
+	return MergedInputMessageContent{
+		Latitude:        v.Latitude,
+		Longitude:       v.Longitude,
+		Title:           v.Title,
+		Address:         v.Address,
+		FoursquareID:    v.FoursquareID,
+		FoursquareType:  v.FoursquareType,
+		GooglePlaceID:   v.GooglePlaceID,
+		GooglePlaceType: v.GooglePlaceType,
+	}
+}
+func (v *InputContactMessageContent) MergeInputMessageContent() MergedInputMessageContent {
+	return MergedInputMessageContent{
+		PhoneNumber: v.PhoneNumber,
+		FirstName:   v.FirstName,
+		LastName:    v.LastName,
+		Vcard:       v.Vcard,
+	}
+}
+func (v *InputInvoiceMessageContent) MergeInputMessageContent() MergedInputMessageContent {
+	return MergedInputMessageContent{
+		Title:                     v.Title,
+		Description:               v.Description,
+		Payload:                   v.Payload,
+		ProviderToken:             v.ProviderToken,
+		Currency:                  v.Currency,
+		Prices:                    v.Prices,
+		MaxTipAmount:              v.MaxTipAmount,
+		SuggestedTipAmounts:       v.SuggestedTipAmounts,
+		ProviderData:              v.ProviderData,
+		PhotoURL:                  v.PhotoURL,
+		PhotoSize:                 v.PhotoSize,
+		PhotoWidth:                v.PhotoWidth,
+		PhotoHeight:               v.PhotoHeight,
+		NeedName:                  v.NeedName,
+		NeedPhoneNumber:           v.NeedPhoneNumber,
+		NeedEmail:                 v.NeedEmail,
+		NeedShippingAddress:       v.NeedShippingAddress,
+		SendPhoneNumberToProvider: v.SendPhoneNumberToProvider,
+		SendEmailToProvider:       v.SendEmailToProvider,
+		IsFlexible:                v.IsFlexible,
+	}
+}
+
 // This object describes the state of a revenue withdrawal operation. Currently, it can be one of
 type RevenueWithdrawalState interface {
 	isRevenueWithdrawalState()
 	GetType() string
+	MergeRevenueWithdrawalState() MergedRevenueWithdrawalState
 }
 
 func (*RevenueWithdrawalStatePending) isRevenueWithdrawalState()   {}
@@ -6822,10 +8802,43 @@ func (v *RevenueWithdrawalStatePending) GetType() string   { return v.Type }
 func (v *RevenueWithdrawalStateSucceeded) GetType() string { return v.Type }
 func (v *RevenueWithdrawalStateFailed) GetType() string    { return v.Type }
 
+// MergedRevenueWithdrawalState is the union of every RevenueWithdrawalState member's fields, returned by
+// RevenueWithdrawalState.MergeRevenueWithdrawalState() — an escape hatch from type-switching for callers who just
+// want to read a field generically. A field a particular member doesn't
+// have keeps its zero value here, so it can't be told apart from a field
+// that's genuinely zero — check the discriminator field, or type-switch the
+// original interface value, when that distinction matters.
+type MergedRevenueWithdrawalState struct {
+	Date int64
+	Type string
+	URL  string
+}
+
+// The MergeRevenueWithdrawalState methods below implement RevenueWithdrawalState: every member's fields, folded
+// into one flat struct — see MergedRevenueWithdrawalState's doc for the tradeoff.
+func (v *RevenueWithdrawalStatePending) MergeRevenueWithdrawalState() MergedRevenueWithdrawalState {
+	return MergedRevenueWithdrawalState{
+		Type: v.Type,
+	}
+}
+func (v *RevenueWithdrawalStateSucceeded) MergeRevenueWithdrawalState() MergedRevenueWithdrawalState {
+	return MergedRevenueWithdrawalState{
+		Type: v.Type,
+		Date: v.Date,
+		URL:  v.URL,
+	}
+}
+func (v *RevenueWithdrawalStateFailed) MergeRevenueWithdrawalState() MergedRevenueWithdrawalState {
+	return MergedRevenueWithdrawalState{
+		Type: v.Type,
+	}
+}
+
 // This object describes the source of a transaction, or its recipient for outgoing transactions. Currently, it can be one of
 type TransactionPartner interface {
 	isTransactionPartner()
 	GetType() string
+	MergeTransactionPartner() MergedTransactionPartner
 }
 
 func (*TransactionPartnerUser) isTransactionPartner()             {}
@@ -6846,12 +8859,90 @@ func (v *TransactionPartnerTelegramAds) GetType() string      { return v.Type }
 func (v *TransactionPartnerTelegramApi) GetType() string      { return v.Type }
 func (v *TransactionPartnerOther) GetType() string            { return v.Type }
 
+// MergedTransactionPartner is the union of every TransactionPartner member's fields, returned by
+// TransactionPartner.MergeTransactionPartner() — an escape hatch from type-switching for callers who just
+// want to read a field generically. A field a particular member doesn't
+// have keeps its zero value here, so it can't be told apart from a field
+// that's genuinely zero — check the discriminator field, or type-switch the
+// original interface value, when that distinction matters.
+type MergedTransactionPartner struct {
+	Affiliate                   *AffiliateInfo
+	Chat                        *Chat
+	CommissionPerMille          int64
+	Gift                        *Gift
+	InvoicePayload              string
+	PaidMedia                   []PaidMedia
+	PaidMediaPayload            string
+	PremiumSubscriptionDuration int64
+	RequestCount                int64
+	SponsorUser                 *User
+	SubscriptionPeriod          int64
+	TransactionType             string
+	Type                        string
+	User                        *User
+	WithdrawalState             RevenueWithdrawalState
+}
+
+// The MergeTransactionPartner methods below implement TransactionPartner: every member's fields, folded
+// into one flat struct — see MergedTransactionPartner's doc for the tradeoff.
+func (v *TransactionPartnerUser) MergeTransactionPartner() MergedTransactionPartner {
+	return MergedTransactionPartner{
+		Type:                        v.Type,
+		TransactionType:             v.TransactionType,
+		User:                        v.User,
+		Affiliate:                   v.Affiliate,
+		InvoicePayload:              v.InvoicePayload,
+		SubscriptionPeriod:          v.SubscriptionPeriod,
+		PaidMedia:                   v.PaidMedia,
+		PaidMediaPayload:            v.PaidMediaPayload,
+		Gift:                        v.Gift,
+		PremiumSubscriptionDuration: v.PremiumSubscriptionDuration,
+	}
+}
+func (v *TransactionPartnerChat) MergeTransactionPartner() MergedTransactionPartner {
+	return MergedTransactionPartner{
+		Type: v.Type,
+		Chat: v.Chat,
+		Gift: v.Gift,
+	}
+}
+func (v *TransactionPartnerAffiliateProgram) MergeTransactionPartner() MergedTransactionPartner {
+	return MergedTransactionPartner{
+		Type:               v.Type,
+		SponsorUser:        v.SponsorUser,
+		CommissionPerMille: v.CommissionPerMille,
+	}
+}
+func (v *TransactionPartnerFragment) MergeTransactionPartner() MergedTransactionPartner {
+	return MergedTransactionPartner{
+		Type:            v.Type,
+		WithdrawalState: v.WithdrawalState,
+	}
+}
+func (v *TransactionPartnerTelegramAds) MergeTransactionPartner() MergedTransactionPartner {
+	return MergedTransactionPartner{
+		Type: v.Type,
+	}
+}
+func (v *TransactionPartnerTelegramApi) MergeTransactionPartner() MergedTransactionPartner {
+	return MergedTransactionPartner{
+		Type:         v.Type,
+		RequestCount: v.RequestCount,
+	}
+}
+func (v *TransactionPartnerOther) MergeTransactionPartner() MergedTransactionPartner {
+	return MergedTransactionPartner{
+		Type: v.Type,
+	}
+}
+
 // This object represents an error in the Telegram Passport element which was submitted that should be resolved by the user. It should be one of:
 type PassportElementError interface {
 	isPassportElementError()
 	GetMessage() string
 	GetSource() string
 	GetType() string
+	MergePassportElementError() MergedPassportElementError
 }
 
 func (*PassportElementErrorDataField) isPassportElementError()        {}
@@ -6893,6 +8984,99 @@ func (v *PassportElementErrorTranslationFiles) GetType() string    { return v.Ty
 func (v *PassportElementErrorUnspecified) GetMessage() string      { return v.Message }
 func (v *PassportElementErrorUnspecified) GetSource() string       { return v.Source }
 func (v *PassportElementErrorUnspecified) GetType() string         { return v.Type }
+
+// MergedPassportElementError is the union of every PassportElementError member's fields, returned by
+// PassportElementError.MergePassportElementError() — an escape hatch from type-switching for callers who just
+// want to read a field generically. A field a particular member doesn't
+// have keeps its zero value here, so it can't be told apart from a field
+// that's genuinely zero — check the discriminator field, or type-switch the
+// original interface value, when that distinction matters.
+type MergedPassportElementError struct {
+	DataHash    string
+	ElementHash string
+	FieldName   string
+	FileHash    string
+	FileHashes  []string
+	Message     string
+	Source      string
+	Type        string
+}
+
+// The MergePassportElementError methods below implement PassportElementError: every member's fields, folded
+// into one flat struct — see MergedPassportElementError's doc for the tradeoff.
+func (v *PassportElementErrorDataField) MergePassportElementError() MergedPassportElementError {
+	return MergedPassportElementError{
+		Source:    v.Source,
+		Type:      v.Type,
+		FieldName: v.FieldName,
+		DataHash:  v.DataHash,
+		Message:   v.Message,
+	}
+}
+func (v *PassportElementErrorFrontSide) MergePassportElementError() MergedPassportElementError {
+	return MergedPassportElementError{
+		Source:   v.Source,
+		Type:     v.Type,
+		FileHash: v.FileHash,
+		Message:  v.Message,
+	}
+}
+func (v *PassportElementErrorReverseSide) MergePassportElementError() MergedPassportElementError {
+	return MergedPassportElementError{
+		Source:   v.Source,
+		Type:     v.Type,
+		FileHash: v.FileHash,
+		Message:  v.Message,
+	}
+}
+func (v *PassportElementErrorSelfie) MergePassportElementError() MergedPassportElementError {
+	return MergedPassportElementError{
+		Source:   v.Source,
+		Type:     v.Type,
+		FileHash: v.FileHash,
+		Message:  v.Message,
+	}
+}
+func (v *PassportElementErrorFile) MergePassportElementError() MergedPassportElementError {
+	return MergedPassportElementError{
+		Source:   v.Source,
+		Type:     v.Type,
+		FileHash: v.FileHash,
+		Message:  v.Message,
+	}
+}
+func (v *PassportElementErrorFiles) MergePassportElementError() MergedPassportElementError {
+	return MergedPassportElementError{
+		Source:     v.Source,
+		Type:       v.Type,
+		FileHashes: v.FileHashes,
+		Message:    v.Message,
+	}
+}
+func (v *PassportElementErrorTranslationFile) MergePassportElementError() MergedPassportElementError {
+	return MergedPassportElementError{
+		Source:   v.Source,
+		Type:     v.Type,
+		FileHash: v.FileHash,
+		Message:  v.Message,
+	}
+}
+func (v *PassportElementErrorTranslationFiles) MergePassportElementError() MergedPassportElementError {
+	return MergedPassportElementError{
+		Source:     v.Source,
+		Type:       v.Type,
+		FileHashes: v.FileHashes,
+		Message:    v.Message,
+	}
+}
+func (v *PassportElementErrorUnspecified) MergePassportElementError() MergedPassportElementError {
+	return MergedPassportElementError{
+		Source:      v.Source,
+		Type:        v.Type,
+		ElementHash: v.ElementHash,
+		Message:     v.Message,
+	}
+}
 
 // unmarshalBackgroundFill decodes one BackgroundFill union value into its concrete member
 // type, switching on the "type" discriminator field.

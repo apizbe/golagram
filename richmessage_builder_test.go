@@ -461,8 +461,9 @@ func TestRenderRichMessage_CharLimit(t *testing.T) {
 // future concrete type must still fail loudly, not panic or silently drop.
 type unrenderableRichBlock struct{}
 
-func (unrenderableRichBlock) isRichBlock()    {}
-func (unrenderableRichBlock) GetType() string { return "unknown" }
+func (unrenderableRichBlock) isRichBlock()                    {}
+func (unrenderableRichBlock) GetType() string                 { return "unknown" }
+func (unrenderableRichBlock) MergeRichBlock() MergedRichBlock { return MergedRichBlock{} }
 
 func TestRenderRichMessage_UnknownBlockType_ErrorsLoudly(t *testing.T) {
 	_, err := RenderRichMessage(unrenderableRichBlock{})

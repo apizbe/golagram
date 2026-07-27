@@ -245,7 +245,13 @@ func TestGoldenOutput(t *testing.T) {
 		golden string
 		render func() string
 	}{
-		{"types.golden.go", func() string { return renderTypesFile(spec.APIVersion, spec.Items) }},
+		{"types.golden.go", func() string {
+			out, err := renderTypesFile(spec.APIVersion, spec.Items)
+			if err != nil {
+				t.Fatalf("renderTypesFile: %v", err)
+			}
+			return out
+		}},
 		{"methods.golden.go", func() string { return renderMethodsFile(spec.APIVersion, spec.Items) }},
 	} {
 		fresh, err := formatOrRaw(tc.render())
@@ -308,7 +314,13 @@ func TestGeneratedFilesAreUpToDate(t *testing.T) {
 		committedPath string
 		render        func() string
 	}{
-		{"types.gen.go", func() string { return renderTypesFile(spec.APIVersion, spec.Items) }},
+		{"types.gen.go", func() string {
+			out, err := renderTypesFile(spec.APIVersion, spec.Items)
+			if err != nil {
+				t.Fatalf("renderTypesFile: %v", err)
+			}
+			return out
+		}},
 		{"methods.gen.go", func() string { return renderMethodsFile(spec.APIVersion, spec.Items) }},
 		{"consts.gen.go", func() string { return renderConstsFile(spec.APIVersion, groups) }},
 	} {

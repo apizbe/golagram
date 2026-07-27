@@ -38,7 +38,11 @@ func run() error {
 		return err
 	}
 
-	if err := writeGenerated(filepath.Join(root, "types.gen.go"), renderTypesFile(spec.APIVersion, spec.Items)); err != nil {
+	typesSrc, err := renderTypesFile(spec.APIVersion, spec.Items)
+	if err != nil {
+		return err
+	}
+	if err := writeGenerated(filepath.Join(root, "types.gen.go"), typesSrc); err != nil {
 		return err
 	}
 	if err := writeGenerated(filepath.Join(root, "methods.gen.go"), renderMethodsFile(spec.APIVersion, spec.Items)); err != nil {

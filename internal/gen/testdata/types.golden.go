@@ -85,6 +85,7 @@ type Creature interface {
 	isCreature()
 	GetID() int64
 	GetType() string
+	MergeCreature() MergedCreature
 }
 
 func (*Animal) isCreature() {}
@@ -96,6 +97,40 @@ func (v *Animal) GetID() int64    { return v.ID }
 func (v *Animal) GetType() string { return v.Type }
 func (v *Robot) GetID() int64     { return v.ID }
 func (v *Robot) GetType() string  { return v.Type }
+
+// MergedCreature is the union of every Creature member's fields, returned by
+// Creature.MergeCreature() — an escape hatch from type-switching for callers who just
+// want to read a field generically. A field a particular member doesn't
+// have keeps its zero value here, so it can't be told apart from a field
+// that's genuinely zero — check the discriminator field, or type-switch the
+// original interface value, when that distinction matters.
+type MergedCreature struct {
+	ID         int64
+	IsDomestic *bool
+	Model      string
+	Name       string
+	Owner      *Person
+	Type       string
+}
+
+// The MergeCreature methods below implement Creature: every member's fields, folded
+// into one flat struct — see MergedCreature's doc for the tradeoff.
+func (v *Animal) MergeCreature() MergedCreature {
+	return MergedCreature{
+		ID:         v.ID,
+		Type:       v.Type,
+		Name:       v.Name,
+		IsDomestic: v.IsDomestic,
+		Owner:      v.Owner,
+	}
+}
+func (v *Robot) MergeCreature() MergedCreature {
+	return MergedCreature{
+		ID:    v.ID,
+		Type:  v.Type,
+		Model: v.Model,
+	}
+}
 
 // unmarshalCreature decodes one Creature union value into its concrete member
 // type, switching on the "type" discriminator field.

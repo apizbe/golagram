@@ -248,6 +248,30 @@ func resolveType(apiType, jsonFieldName string) string {
 	}
 }
 
+// mergedFieldRenames resolves a same-JSON-name field-type collision between
+// two members of the same union when building its Merged<Type> struct (see
+// unionMergedFields in internal/gen/unions.go) — verified exhaustively
+// against api.json 10.1: exactly three unions have one such collision each,
+// always a clean two-way split (every member but one agrees on the type).
+// Keyed by "UnionSpecName.MemberSpecName.json_field_name", giving that one
+// member's field an alternate name in the merged struct instead of the
+// plain fieldName(json_field_name) every other member sharing that JSON
+// field name gets. unionMergedFields errors loudly if a spec update
+// introduces a collision with no matching entry here, rather than silently
+// dropping a field or picking one member's type over another's.
+var mergedFieldRenames = map[string]string{
+	// OwnedGiftRegular.gift is *Gift; OwnedGiftUnique.gift is *UniqueGift.
+	"OwnedGift.OwnedGiftUnique.gift": "UniqueGift",
+	// InputMediaSticker.media resolves to plain string — it's the one
+	// InputPollOptionMedia member not in mediaFileFieldFixups, so it never
+	// gets promoted to InputFile like every other member's media field.
+	"InputPollOptionMedia.InputMediaSticker.media": "StickerMedia",
+	// RichBlockTable.caption is the bare RichText union; every other
+	// RichBlock member with a caption field uses the concrete
+	// *RichBlockCaption.
+	"RichBlock.RichBlockTable.caption": "TableCaption",
+}
+
 // isOptionalTypeField reports whether a type's field (not a method param —
 // those carry their own Required marker) is optional, per the "Optional. "
 // description prefix convention scripts/parse_botapi.py emits.

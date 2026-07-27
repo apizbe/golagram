@@ -16,6 +16,11 @@ func (RichPlainText) isRichText() {}
 // sends it as a bare JSON string, never as an object with a "type" field.
 func (RichPlainText) GetType() string { return "" }
 
+// MergeRichText returns the zero MergedRichText — RichPlainText's only data
+// is its own string value, which isn't one of the fields any generated
+// RichText member carries, so there's nothing to fold in.
+func (RichPlainText) MergeRichText() MergedRichText { return MergedRichText{} }
+
 // RichTextSequence is RichText's "Array of RichText" alternative: several
 // consecutive spans (plain text followed by a bold word, say) arrive
 // concatenated in one JSON array instead of one object. Not a spec-named
@@ -26,3 +31,8 @@ func (RichTextSequence) isRichText() {}
 
 // GetType returns "" — RichTextSequence has no discriminator value either.
 func (RichTextSequence) GetType() string { return "" }
+
+// MergeRichText returns the zero MergedRichText — RichTextSequence's data is
+// its own slice of spans, which isn't one of the fields any generated
+// RichText member carries, so there's nothing to fold in.
+func (RichTextSequence) MergeRichText() MergedRichText { return MergedRichText{} }

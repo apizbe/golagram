@@ -116,6 +116,114 @@ func TestGetChatMenuButton_DecodesUnion(t *testing.T) {
 	}
 }
 
+// MergeChatMember (gotgbot's "escape type-switching entirely" idea) is
+// generated for every union with 2+ real members — this decodes each of
+// ChatMember's six and checks the merged view lands the right fields with
+// everything else at its zero value.
+func TestChatMember_MergeChatMember_AllStatuses(t *testing.T) {
+	cases := []struct {
+		payload string
+		check   func(t *testing.T, mm MergedChatMember)
+	}{
+		{
+			`{"status":"creator","user":{"id":1,"is_bot":false,"first_name":"A"},"is_anonymous":true,"custom_title":"Boss"}`,
+			func(t *testing.T, mm MergedChatMember) {
+				if mm.Status != "creator" || !mm.IsAnonymous || mm.CustomTitle != "Boss" {
+					t.Errorf("unexpected merged owner: %+v", mm)
+				}
+				if mm.CanPinMessages || mm.IsMember {
+					t.Errorf("fields not on ChatMemberOwner should stay zero: %+v", mm)
+				}
+			},
+		},
+		{
+			`{"status":"administrator","user":{"id":1,"is_bot":false,"first_name":"A"},"can_pin_messages":true}`,
+			func(t *testing.T, mm MergedChatMember) {
+				if mm.Status != "administrator" || !mm.CanPinMessages {
+					t.Errorf("unexpected merged administrator: %+v", mm)
+				}
+				if mm.IsMember {
+					t.Errorf("IsMember is ChatMemberRestricted-only, should stay zero: %+v", mm)
+				}
+			},
+		},
+		{
+			`{"status":"member","user":{"id":1,"is_bot":false,"first_name":"A"}}`,
+			func(t *testing.T, mm MergedChatMember) {
+				if mm.Status != "member" {
+					t.Errorf("unexpected merged member: %+v", mm)
+				}
+			},
+		},
+		{
+			`{"status":"restricted","user":{"id":1,"is_bot":false,"first_name":"A"},"is_member":true,"can_pin_messages":true}`,
+			func(t *testing.T, mm MergedChatMember) {
+				if mm.Status != "restricted" || !mm.IsMember || !mm.CanPinMessages {
+					t.Errorf("unexpected merged restricted: %+v", mm)
+				}
+			},
+		},
+		{
+			`{"status":"left","user":{"id":1,"is_bot":false,"first_name":"A"}}`,
+			func(t *testing.T, mm MergedChatMember) {
+				if mm.Status != "left" {
+					t.Errorf("unexpected merged left: %+v", mm)
+				}
+			},
+		},
+		{
+			`{"status":"kicked","user":{"id":1,"is_bot":false,"first_name":"A"},"until_date":1700000000}`,
+			func(t *testing.T, mm MergedChatMember) {
+				if mm.Status != "kicked" || mm.UntilDate != 1700000000 {
+					t.Errorf("unexpected merged banned: %+v", mm)
+				}
+			},
+		},
+	}
+	for _, c := range cases {
+		m, err := unmarshalChatMember([]byte(c.payload))
+		if err != nil {
+			t.Fatalf("unmarshalChatMember(%s): %v", c.payload, err)
+		}
+		mm := m.MergeChatMember()
+		if mm.User == nil || mm.User.ID != 1 {
+			t.Errorf("MergeChatMember() dropped the common User field: %+v", mm)
+		}
+		c.check(t, mm)
+	}
+}
+
+// OwnedGiftRegular.Gift is *Gift; OwnedGiftUnique.Gift is *UniqueGift — a
+// same-JSON-name, different-Go-type collision that MergedOwnedGift resolves
+// by keeping them as two separate fields (Gift and UniqueGift) rather than
+// picking one type or dropping data. Pins that both halves decode into the
+// field the generator's mergedFieldRenames fixup says they should.
+func TestOwnedGift_MergeOwnedGift_GiftVsUniqueGiftFieldsStayDistinct(t *testing.T) {
+	regular, err := unmarshalOwnedGift([]byte(`{"type":"regular","gift":{"id":"g1","sticker":{"file_id":"s1","file_unique_id":"u1","width":1,"height":1,"is_animated":false,"is_video":false},"star_count":50},"owned_gift_id":"og1"}`))
+	if err != nil {
+		t.Fatalf("unmarshalOwnedGift(regular): %v", err)
+	}
+	mmRegular := regular.MergeOwnedGift()
+	if mmRegular.Gift == nil || mmRegular.Gift.ID != "g1" {
+		t.Errorf("MergedOwnedGift.Gift = %+v, want the regular Gift", mmRegular.Gift)
+	}
+	if mmRegular.UniqueGift != nil {
+		t.Errorf("MergedOwnedGift.UniqueGift should stay nil for a regular gift, got %+v", mmRegular.UniqueGift)
+	}
+
+	unique, err := unmarshalOwnedGift([]byte(`{"type":"unique","gift":{"gift_id":"g2","base_name":"Base","name":"Unique #1","number":1},"owned_gift_id":"og2"}`))
+	if err != nil {
+		t.Fatalf("unmarshalOwnedGift(unique): %v", err)
+	}
+	mmUnique := unique.MergeOwnedGift()
+	if mmUnique.UniqueGift == nil || mmUnique.UniqueGift.Name != "Unique #1" {
+		t.Errorf("MergedOwnedGift.UniqueGift = %+v, want the unique gift", mmUnique.UniqueGift)
+	}
+	if mmUnique.Gift != nil {
+		t.Errorf("MergedOwnedGift.Gift should stay nil for a unique gift, got %+v", mmUnique.Gift)
+	}
+}
+
 // The chat_member update kind used to arrive with old_chat_member and
 // new_chat_member omitted entirely — dispatchable but useless. Decode a
 // realistic payload end-to-end through Update.

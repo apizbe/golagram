@@ -212,6 +212,74 @@ func unionCommonFields(it Item, typeNames map[string]bool, typesByName map[strin
 	return out
 }
 
+// unionMergedField is one field of a union's Merged<Name> struct — the union
+// (not intersection) of every real member's fields.
+type unionMergedField struct {
+	goName string
+	goType string
+}
+
+// unionMergedFields computes every field any real member of it has — the
+// mirror image of unionCommonFields (which intersects). Where two members
+// share a JSON field name, the field is merged into one struct field if
+// they also resolve to the same Go type; where the types disagree,
+// mergedFieldRenames must supply an alternate name for every member past
+// the first, so the two stay distinct fields rather than silently losing
+// one member's data or claiming a type it doesn't have. An entry missing
+// from mergedFieldRenames for a genuine collision is an error, not a
+// best-effort guess — same fail-loud stance as prepareSpec's discriminator
+// checks. Returns (nil, nil) for a union with fewer than two members that
+// resolved to a real generated struct, matching unionCommonFields.
+func unionMergedFields(it Item, typeNames map[string]bool, typesByName map[string]Item) ([]unionMergedField, error) {
+	type seenField struct {
+		unionMergedField
+		member string // spec name of the member that first claimed this goName, for the error message
+	}
+	seen := map[string]seenField{}
+	var order []string
+	realMembers := 0
+
+	for _, member := range it.Members {
+		if !typeNames[member] {
+			continue
+		}
+		mi, ok := typesByName[member]
+		if !ok {
+			continue
+		}
+		realMembers++
+		for _, f := range mi.Fields {
+			goType, _ := fieldTypeAndTag(member, f.Type, f.Name, f.Description, isOptionalTypeField(f))
+			goName := fieldName(f.Name)
+			if rename, ok := mergedFieldRenames[it.Name+"."+member+"."+f.Name]; ok {
+				goName = rename
+			}
+
+			if prev, ok := seen[goName]; ok {
+				if prev.goType != goType {
+					return nil, fmt.Errorf("union %s: %s.%s resolves to %s, colliding with %s's %q field (also %s) — "+
+						"add a mergedFieldRenames entry for %q",
+						it.Name, member, f.Name, goType, prev.member, goName, prev.goType,
+						it.Name+"."+member+"."+f.Name)
+				}
+				continue
+			}
+			seen[goName] = seenField{unionMergedField{goName: goName, goType: goType}, member}
+			order = append(order, goName)
+		}
+	}
+	if realMembers < 2 {
+		return nil, nil
+	}
+
+	sort.Strings(order)
+	out := make([]unionMergedField, 0, len(order))
+	for _, name := range order {
+		out = append(out, seen[name].unionMergedField)
+	}
+	return out, nil
+}
+
 // richTextPrimitiveAlternatives is a targeted fixup, not a general rule —
 // keyed by exact union spec name, same precedent as mapping.go's
 // mediaFileFieldFixups. RichText is the only union in the 10.1 spec whose

@@ -291,6 +291,18 @@ func (*RichBlockAuthoredMedia) isRichBlock() {}
 // GetType returns the block's rich-message type tag (e.g. "authored_photo").
 func (v *RichBlockAuthoredMedia) GetType() string { return "authored_" + v.tag }
 
+// MergeRichBlock folds in the two fields RichBlockAuthoredMedia shares in
+// meaning with generated RichBlock members (Caption, HasSpoiler); its URL
+// isn't one of MergedRichBlock's fields, same as it isn't part of any
+// generated member's field set.
+func (v *RichBlockAuthoredMedia) MergeRichBlock() MergedRichBlock {
+	return MergedRichBlock{
+		Type:       v.GetType(),
+		Caption:    v.Caption,
+		HasSpoiler: v.Spoiler,
+	}
+}
+
 // RichPhoto originates a new photo by URL (<img src="...">). See
 // [RichBlockAuthoredMedia] for Spoiler/Caption and how to group several
 // into a collage or slideshow.
