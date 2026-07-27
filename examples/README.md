@@ -26,7 +26,7 @@ Start with `echo`, then jump to whichever feature you came for.
 | [`i18n`](i18n/main.go) | Locale-aware `c.T`/`c.TN` with real CLDR plural rules | `go run ./examples/i18n` |
 | [`deeplink`](deeplink/main.go) | Referral deep links + a live "typing…" indicator | `go run ./examples/deeplink` |
 | [`broadcast`](broadcast/main.go) | `gg.Broadcast`: paced bulk sends with live progress | `go run ./examples/broadcast` |
-| [`richmessage`](richmessage/main.go) | Bot API 10.1 Rich Messages: `gg.RichParagraph`/`gg.RichTable`/... + `gg.RenderRichMessage` to build and send, streaming drafts, and `RichMessage.PlainText()` to read one back | `go run ./examples/richmessage` |
+| [`richmessage`](richmessage/main.go) | Bot API Rich Messages: `gg.RichParagraph`/`gg.RichTable`/... + `gg.RenderRichMessage` (HTML) or `gg.InputRichParagraph`/... + `gg.RenderRichMessageBlocks` (10.2's structured blocks) to build and send, streaming drafts, and `RichMessage.PlainText()` to read one back | `go run ./examples/richmessage` |
 | [`todo`](todo/) | A full per-user task-list bot, split into a route table | `go run ./examples/todo` |
 
 Each single-file example opens with a short header comment explaining what

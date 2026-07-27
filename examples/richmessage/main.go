@@ -5,7 +5,10 @@
 // the boundary the builder still enforces (decode-only media types with a
 // Telegram file reference instead of a URL) and /markdown for the one thing
 // it deliberately doesn't cover at all (Markdown output; the builder only
-// targets HTML). Reading one back uses gg.RichMessage.PlainText (see
+// targets HTML). /blocks demonstrates Bot API 10.2's structured alternative
+// (gg.InputRichBlock/gg.RenderRichMessageBlocks) — no HTML string at all,
+// and real media uploads including voice notes/animations, which the HTML
+// path can't originate. Reading one back uses gg.RichMessage.PlainText (see
 // richmessage_reader.go in the root package) — forward one of this bot's
 // own replies back to it to see it in action. Run it with:
 //
@@ -41,6 +44,7 @@ func main() {
 		_, err := c.Answer("Rich Messages demo. Try:\n" +
 			"/headings /table /list /quote /details /media /math /special\n" +
 			"/markdown — the same content expressed as Markdown instead of HTML\n" +
+			"/blocks — Bot API 10.2's structured block path instead of HTML\n" +
 			"/draft — streaming a partial rich message before finalizing\n\n" +
 			"Forward any of my replies back to me to see the reader walk the block tree.")
 		return err
@@ -156,6 +160,30 @@ func main() {
 		_, err := c.Bot().SendRichMessage(c, &gg.SendRichMessageRequest{
 			ChatID:      gg.ChatIDFromInt(c.Chat().ID),
 			RichMessage: &gg.InputRichMessage{Markdown: md},
+		})
+		return err
+	})
+
+	r.Message(gg.FilterCommand("blocks")).Handle(func(c *gg.Ctx) error {
+		// Same content as /headings and /media, but assembled with the
+		// gg.InputRich* constructors and gg.RenderRichMessageBlocks instead
+		// of gg.Rich* and gg.RenderRichMessage — no HTML string produced at
+		// all. RichText spans (gg.RichPlain, gg.RichBold, ...) are shared
+		// between both paths unchanged.
+		photo := gg.InputRichPhoto(gg.InputFileURL("https://picsum.photos/seed/1/400"))
+		photo.Caption = &gg.RichBlockCaption{Text: gg.RichPlain("From the 10.2 blocks path")}
+
+		msg, err := gg.RenderRichMessageBlocks(
+			gg.InputRichHeading(2, gg.RichPlain("Structured Blocks")),
+			gg.InputRichParagraph(gg.RichPlain("No HTML string here — this is "), gg.RichBold(gg.RichPlain("sent as JSON")), gg.RichPlain(".")),
+			photo,
+		)
+		if err != nil {
+			return err
+		}
+		_, err = c.Bot().SendRichMessage(c, &gg.SendRichMessageRequest{
+			ChatID:      gg.ChatIDFromInt(c.Chat().ID),
+			RichMessage: msg,
 		})
 		return err
 	})
