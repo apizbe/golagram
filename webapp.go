@@ -243,8 +243,8 @@ func parseWebAppInitDataFields(values url.Values, maxAge time.Duration) (*WebApp
 		if d.AuthDate.IsZero() {
 			return nil, &ValidationError{Field: "init data", Message: "no auth_date to check freshness against"}
 		}
-		if age := time.Since(d.AuthDate); age > maxAge {
-			return nil, &ValidationError{Field: "init data", Message: "expired: signed " + age.Round(time.Second).String() + " ago, max age " + maxAge.String()}
+		if age := time.Since(d.AuthDate); age > maxAge || age < -5*time.Minute {
+			return nil, &ValidationError{Field: "init data", Message: "timestamp is outside the allowed freshness window"}
 		}
 	}
 	return d, nil
@@ -306,8 +306,8 @@ func ValidateLoginWidgetData(values url.Values, botToken string, maxAge time.Dur
 		if d.AuthDate.IsZero() {
 			return nil, &ValidationError{Field: "login data", Message: "no auth_date to check freshness against"}
 		}
-		if age := time.Since(d.AuthDate); age > maxAge {
-			return nil, &ValidationError{Field: "login data", Message: "expired: signed " + age.Round(time.Second).String() + " ago, max age " + maxAge.String()}
+		if age := time.Since(d.AuthDate); age > maxAge || age < -5*time.Minute {
+			return nil, &ValidationError{Field: "login data", Message: "timestamp is outside the allowed freshness window"}
 		}
 	}
 	return d, nil

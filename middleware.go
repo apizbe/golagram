@@ -108,9 +108,16 @@ type tokenBucket struct {
 // NewRateLimiter creates a limiter allowing `rate` events per second per key,
 // with bursts up to `burst`. idleTTL controls how long an untouched key's
 // bucket is kept before being evicted; pass 0 for a sensible default (10x
-// the time to refill one token, floored at a minute). Call
+// the time to refill one token, floored at a minute). Non-positive rate and
+// burst values use safe defaults of 1 event/second and a burst of 1. Call
 // [RateLimiter.Close] when done to stop the background sweep goroutine.
 func NewRateLimiter(rate float64, burst int, idleTTL time.Duration) *RateLimiter {
+	if rate <= 0 {
+		rate = 1
+	}
+	if burst <= 0 {
+		burst = 1
+	}
 	if idleTTL <= 0 {
 		idleTTL = time.Duration(float64(time.Second) * 10 / rate)
 		if idleTTL < time.Minute {

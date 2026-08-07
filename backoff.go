@@ -16,6 +16,12 @@ type Backoff struct {
 // NewBackoff creates a Backoff starting at min, doubling on every
 // [Backoff.Next] call up to max.
 func NewBackoff(min, max time.Duration) *Backoff {
+	if min <= 0 {
+		min = time.Second
+	}
+	if max < min {
+		max = min
+	}
 	return &Backoff{min: min, max: max, current: min}
 }
 

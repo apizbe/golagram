@@ -198,6 +198,17 @@ func TestRateLimiter_KeysAreIndependent(t *testing.T) {
 	}
 }
 
+func TestRateLimiter_InvalidValuesAreClamped(t *testing.T) {
+	rl := NewRateLimiter(0, 0, time.Minute)
+	defer rl.Close()
+	if !rl.Allow(1) {
+		t.Error("expected a safe-default limiter to allow its first request")
+	}
+	if rl.Allow(1) {
+		t.Error("expected the default burst of one to reject an immediate second request")
+	}
+}
+
 func TestRateLimitMiddleware(t *testing.T) {
 	rl := NewRateLimiter(1, 1, time.Minute)
 	defer rl.Close()

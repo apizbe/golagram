@@ -34,9 +34,12 @@ type AdminCache struct {
 
 // NewAdminCache creates a cache that re-checks admin status via
 // [TelegramBot.GetChatMember] at most once per ttl for a given {chat,
-// user}. Call [AdminCache.Close] when done to stop the background sweep
-// goroutine.
+// user}. A non-positive ttl uses a one-minute default. Call
+// [AdminCache.Close] when done to stop the background sweep goroutine.
 func NewAdminCache(ttl time.Duration) *AdminCache {
+	if ttl <= 0 {
+		ttl = time.Minute
+	}
 	a := &AdminCache{
 		entries:     make(map[adminCacheKey]adminCacheEntry),
 		ttl:         ttl,

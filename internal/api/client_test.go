@@ -60,6 +60,22 @@ func TestClient_Call_HitsMethodPathWithJSONBody(t *testing.T) {
 	}
 }
 
+func TestClient_BaseURL_TrailingSlashIsNormalized(t *testing.T) {
+	var gotPath string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		w.Write([]byte(`{"ok":true,"result":true}`))
+	}))
+	defer server.Close()
+	client := NewClientWithBaseURL(testToken, server.URL+"/bot/")
+	if _, err := client.Call(context.Background(), "getMe", nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if want := "/bot" + testToken + "/getMe"; gotPath != want {
+		t.Errorf("request path = %q, want %q", gotPath, want)
+	}
+}
+
 func TestClient_Call_NilParamsSendsEmptyBody(t *testing.T) {
 	client := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)

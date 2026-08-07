@@ -34,6 +34,25 @@ func TestWebhookHandler_RejectsWrongSecretToken(t *testing.T) {
 	}
 }
 
+func TestValidateWebhookConfig(t *testing.T) {
+	valid := WebhookConfig{Addr: "127.0.0.1:0", Path: "/hook", PublicURL: "https://example.com/hook"}
+	if err := validateWebhookConfig(valid); err != nil {
+		t.Fatalf("valid config rejected: %v", err)
+	}
+	for name, cfg := range map[string]WebhookConfig{
+		"missing path":  {PublicURL: "https://example.com/hook"},
+		"wrong scheme":  {Path: "/hook", PublicURL: "http://example.com/hook"},
+		"path mismatch": {Path: "/other", PublicURL: "https://example.com/hook"},
+		"bad secret":    {Path: "/hook", PublicURL: "https://example.com/hook", SecretToken: "bad secret"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if err := validateWebhookConfig(cfg); err == nil {
+				t.Error("expected invalid webhook config to be rejected")
+			}
+		})
+	}
+}
+
 func TestWebhookHandler_AcceptsCorrectSecretTokenAndQueuesUpdate(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(sendMessageOK))

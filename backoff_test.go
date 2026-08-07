@@ -25,3 +25,13 @@ func TestBackoff_Reset(t *testing.T) {
 		t.Errorf("Next() after Reset = %v, want %v", got, time.Second)
 	}
 }
+
+func TestBackoff_InvalidBoundsUseSafeDefaults(t *testing.T) {
+	b := NewBackoff(0, -time.Second)
+	if got := b.Next(); got != time.Second {
+		t.Errorf("Next() = %v, want 1s", got)
+	}
+	if got := NewBackoff(2*time.Second, time.Second).Next(); got != 2*time.Second {
+		t.Errorf("Next() with max below min = %v, want 2s", got)
+	}
+}

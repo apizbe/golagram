@@ -112,6 +112,16 @@ func TestMemoryStorage_Close_SafeWithoutTTL(t *testing.T) {
 	s.Close() // should be a no-op, not panic
 }
 
+func TestMemoryStorageWithTTL_NonPositiveMeansNoTTL(t *testing.T) {
+	s := NewMemoryStorageWithTTL(0)
+	key := StorageKey{ChatID: 1, UserID: 1}
+	s.SetState(context.Background(), key, "waiting")
+	if state, _ := s.GetState(context.Background(), key); state != "waiting" {
+		t.Fatalf("state = %q, want waiting", state)
+	}
+	s.Close()
+}
+
 func TestMemoryStorageWithTTL_CloseIsSafeToCallTwice(t *testing.T) {
 	s := NewMemoryStorageWithTTL(time.Second)
 	s.Close()

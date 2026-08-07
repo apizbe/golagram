@@ -68,14 +68,15 @@ func NewClient(token string) *Client {
 }
 
 // NewClientWithBaseURL creates a client pointed at a custom base URL — a
-// fake server in tests, or a self-hosted Bot API server in production.
+// fake server in tests, or a self-hosted Bot API server in production. A
+// trailing slash is removed so both ".../bot" and ".../bot/" work.
 func NewClientWithBaseURL(token, baseURL string) *Client {
 	return &Client{
 		token: token,
 		// No client-wide timeout: getUpdates long-polls for tens of seconds.
 		// Per-call deadlines come from the context (see Call).
 		httpClient: &http.Client{},
-		baseURL:    baseURL,
+		baseURL:    strings.TrimRight(baseURL, "/"),
 	}
 }
 

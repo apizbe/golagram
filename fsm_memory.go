@@ -44,9 +44,12 @@ func NewMemoryStorage() *MemoryStorage {
 // The TTL is sliding, not a fixed countdown from creation: every read or
 // write on a key resets its clock, so a user actively working through a
 // conversation never gets cut off mid-flow — only one that's gone idle for
-// the full ttl gets cleaned up. Call [MemoryStorage.Close] when done to
-// stop the background sweep goroutine.
+// the full ttl gets cleaned up. A non-positive ttl means no expiry. Call
+// [MemoryStorage.Close] when done to stop the background sweep goroutine.
 func NewMemoryStorageWithTTL(ttl time.Duration) *MemoryStorage {
+	if ttl <= 0 {
+		return NewMemoryStorage()
+	}
 	s := &MemoryStorage{
 		entries:     make(map[StorageKey]*fsmEntry),
 		ttl:         ttl,

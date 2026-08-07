@@ -7,9 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -172,15 +175,33 @@ func (b *TelegramBot) Handler(cfg WebhookConfig) http.Handler {
 // calling RunWebhook again after a previous Run/RunWebhook/StartWorkers has
 // returned returns errAlreadyRan instead of serving.
 func (b *TelegramBot) RunWebhook(ctx context.Context, cfg WebhookConfig) error {
-	if cfg.PublicURL == "" {
-		return fmt.Errorf("golagram: RunWebhook requires a non-empty WebhookConfig.PublicURL")
-	}
+	ctx = nonNilContext(ctx)
 	if !b.markRan() {
 		return errAlreadyRan
 	}
+	if err := validateWebhookConfig(cfg); err != nil {
+		b.healthMonitor.SetStatus("error")
+		return err
+	}
 
 	if err := b.runStartupHooks(ctx); err != nil {
+		b.healthMonitor.SetStatus("error")
 		return fmt.Errorf("startup hook: %w", err)
+	}
+
+	mux := http.NewServeMux()
+	mux.Handle(cfg.Path, b.Handler(cfg))
+
+	server := cfg.Server
+	if server == nil {
+		server = &http.Server{}
+	}
+	server.Addr = cfg.Addr
+	server.Handler = mux
+	listener, err := net.Listen("tcp", cfg.Addr)
+	if err != nil {
+		b.healthMonitor.SetStatus("error")
+		return fmt.Errorf("webhook listen: %w", err)
 	}
 
 	setReq := &SetWebhookRequest{
@@ -193,6 +214,7 @@ func (b *TelegramBot) RunWebhook(ctx context.Context, cfg WebhookConfig) error {
 	if cfg.UploadCertificate != "" {
 		certFile, err := os.Open(cfg.UploadCertificate)
 		if err != nil {
+			_ = listener.Close()
 			return fmt.Errorf("open webhook certificate: %w", err)
 		}
 		setReq.Certificate = InputFileUpload(filepath.Base(cfg.UploadCertificate), certFile)
@@ -201,27 +223,30 @@ func (b *TelegramBot) RunWebhook(ctx context.Context, cfg WebhookConfig) error {
 			b.logErrorf("failed to close webhook certificate file: %v", closeErr)
 		}
 		if err != nil {
+			_ = listener.Close()
+			b.healthMonitor.SetStatus("error")
 			return fmt.Errorf("setWebhook: %w", err)
 		}
 	} else if _, err := b.SetWebhook(ctx, setReq); err != nil {
+		_ = listener.Close()
+		b.healthMonitor.SetStatus("error")
 		return fmt.Errorf("setWebhook: %w", err)
 	}
+	registered := true
+	defer func() {
+		_ = listener.Close()
+		if registered && cfg.DeleteOnStop {
+			if _, err := b.DeleteWebhook(context.Background(), &DeleteWebhookRequest{}); err != nil {
+				b.logErrorf("failed to delete webhook on shutdown: %v", err)
+			}
+		}
+	}()
 
 	b.startWorkers(ctx)
 	defer func() {
 		b.StopWorkers()
 		b.runShutdownHooks(context.Background())
 	}()
-
-	mux := http.NewServeMux()
-	mux.Handle(cfg.Path, b.Handler(cfg))
-
-	server := cfg.Server
-	if server == nil {
-		server = &http.Server{}
-	}
-	server.Addr = cfg.Addr
-	server.Handler = mux
 
 	// Telegram requires HTTPS: serve TLS directly when a cert/key (or a
 	// pre-populated Server.TLSConfig) was configured, otherwise plain HTTP
@@ -230,11 +255,11 @@ func (b *TelegramBot) RunWebhook(ctx context.Context, cfg WebhookConfig) error {
 	errCh := make(chan error, 1)
 	go func() {
 		if cfg.CertFile != "" && cfg.KeyFile != "" {
-			errCh <- server.ListenAndServeTLS(cfg.CertFile, cfg.KeyFile)
+			errCh <- server.ServeTLS(listener, cfg.CertFile, cfg.KeyFile)
 		} else if tlsConfigured {
-			errCh <- server.ListenAndServeTLS("", "")
+			errCh <- server.ServeTLS(listener, "", "")
 		} else {
-			errCh <- server.ListenAndServe()
+			errCh <- server.Serve(listener)
 		}
 	}()
 
@@ -246,11 +271,6 @@ func (b *TelegramBot) RunWebhook(ctx context.Context, cfg WebhookConfig) error {
 		if err := server.Shutdown(shutdownCtx); err != nil {
 			return fmt.Errorf("webhook server shutdown: %w", err)
 		}
-		if cfg.DeleteOnStop {
-			if _, err := b.DeleteWebhook(context.Background(), &DeleteWebhookRequest{}); err != nil {
-				b.logErrorf("failed to delete webhook on shutdown: %v", err)
-			}
-		}
 		return nil
 	case err := <-errCh:
 		if err != nil && err != http.ErrServerClosed {
@@ -258,4 +278,32 @@ func (b *TelegramBot) RunWebhook(ctx context.Context, cfg WebhookConfig) error {
 		}
 		return nil
 	}
+}
+
+func validateWebhookConfig(cfg WebhookConfig) error {
+	if cfg.Path == "" || !strings.HasPrefix(cfg.Path, "/") || strings.ContainsAny(cfg.Path, "?\r\n") {
+		return fmt.Errorf("golagram: WebhookConfig.Path must be a non-empty URL path beginning with '/'")
+	}
+	u, err := url.Parse(cfg.PublicURL)
+	if err != nil || u.Scheme != "https" || u.Host == "" {
+		return fmt.Errorf("golagram: WebhookConfig.PublicURL must be a valid HTTPS URL")
+	}
+	if u.Path != cfg.Path {
+		return fmt.Errorf("golagram: WebhookConfig.Path %q must match PublicURL path %q", cfg.Path, u.Path)
+	}
+	if cfg.MaxConnections < 0 || cfg.MaxConnections > 100 {
+		return fmt.Errorf("golagram: WebhookConfig.MaxConnections must be between 0 and 100")
+	}
+	if (cfg.CertFile == "") != (cfg.KeyFile == "") {
+		return fmt.Errorf("golagram: WebhookConfig.CertFile and KeyFile must be provided together")
+	}
+	if len(cfg.SecretToken) > 256 {
+		return fmt.Errorf("golagram: WebhookConfig.SecretToken must be at most 256 characters")
+	}
+	for _, r := range cfg.SecretToken {
+		if !(r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '_' || r == '-') {
+			return fmt.Errorf("golagram: WebhookConfig.SecretToken contains an invalid character")
+		}
+	}
+	return nil
 }

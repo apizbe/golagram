@@ -97,6 +97,13 @@ func TestValidateWebAppInitData_MaxAge(t *testing.T) {
 	if _, err := ValidateWebAppInitData(noDate, vectorToken, time.Hour); err == nil {
 		t.Error("init data without auth_date passed a freshness check")
 	}
+	future := signInitData(t, url.Values{
+		"query_id":  {"Q3"},
+		"auth_date": {fmt.Sprint(time.Now().Add(10 * time.Minute).Unix())},
+	}, vectorToken)
+	if _, err := ValidateWebAppInitData(future, vectorToken, time.Hour); err == nil {
+		t.Error("future-dated init data passed a freshness check")
+	}
 }
 
 // signInitData builds initData signed per the Mini Apps spec.
@@ -307,5 +314,17 @@ func TestValidateLoginWidgetData_MaxAge(t *testing.T) {
 	}
 	if _, err := ValidateLoginWidgetData(vectorLoginValues(), vectorToken, 0); err != nil {
 		t.Errorf("maxAge 0 must skip the freshness check: %v", err)
+	}
+	future := url.Values{
+		"id":         {"123456789"},
+		"first_name": {"Aziz"},
+		"auth_date":  {fmt.Sprint(time.Now().Add(10 * time.Minute).Unix())},
+	}
+	key := sha256.Sum256([]byte(vectorToken))
+	mac := hmac.New(sha256.New, key[:])
+	mac.Write([]byte(dataCheckString(future)))
+	future.Set("hash", hex.EncodeToString(mac.Sum(nil)))
+	if _, err := ValidateLoginWidgetData(future, vectorToken, time.Hour); err == nil {
+		t.Error("future-dated login data passed a freshness check")
 	}
 }
