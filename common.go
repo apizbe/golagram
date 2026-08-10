@@ -1,5 +1,14 @@
 package golagram
 
+import "context"
+
+func nonNilContext(ctx context.Context) context.Context {
+	if ctx == nil {
+		return context.Background()
+	}
+	return ctx
+}
+
 // ErrorHandlerFunc is called with a handler's error and the [Ctx] it failed on.
 type ErrorHandlerFunc func(error, *Ctx)
 

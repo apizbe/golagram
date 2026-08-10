@@ -8,11 +8,11 @@ import (
 	"time"
 )
 
-// HealthStatus is a raw-numbers health report. golagram reports what
-// happened and lets operators decide what "unhealthy" means for their bot —
-// invented thresholds in a library are a lie waiting to page someone.
+// HealthStatus is a raw-numbers health report plus a coarse runtime state.
+// Status is one of starting, running, stopping, stopped, or error; callers
+// still decide what counter thresholds should page them.
 type HealthStatus struct {
-	Status            string    `json:"status"` // always "ok" while the process serves
+	Status            string    `json:"status"` // starting, running, stopping, stopped, or error
 	Uptime            string    `json:"uptime"`
 	UptimeSeconds     int64     `json:"uptime_seconds"`
 	StartTime         time.Time `json:"start_time"`
@@ -35,6 +35,7 @@ type HealthStatus struct {
 
 // HealthMonitor tracks the bot's dispatch and error counters.
 type HealthMonitor struct {
+	status            string
 	startTime         time.Time
 	updatesDispatched int64
 	handlersMatched   int64
@@ -52,11 +53,21 @@ type HealthMonitor struct {
 // its start time set to now.
 func NewHealthMonitor() *HealthMonitor {
 	return &HealthMonitor{
+		status:           "starting",
 		startTime:        time.Now(),
 		dispatchedByKind: map[string]int64{},
 		matchedByKind:    map[string]int64{},
 		unmatchedByKind:  map[string]int64{},
 	}
+}
+
+// SetStatus records the bot lifecycle state reported by health checks.
+// Health counters remain available in every state; this field is only a
+// coarse readiness signal, not an application-specific health judgment.
+func (hm *HealthMonitor) SetStatus(status string) {
+	hm.mu.Lock()
+	defer hm.mu.Unlock()
+	hm.status = status
 }
 
 // IncrementDispatched counts an update entering dispatch, whether or not
@@ -112,7 +123,7 @@ func (hm *HealthMonitor) GetStatus() HealthStatus {
 	}
 
 	return HealthStatus{
-		Status:            "ok",
+		Status:            hm.status,
 		Uptime:            uptime.String(),
 		UptimeSeconds:     int64(uptime.Seconds()),
 		StartTime:         hm.startTime,
@@ -145,7 +156,7 @@ func copyKindCounts(m map[string]int64) map[string]int64 {
 // serves every request unauthenticated.
 type HealthGate func(*http.Request) bool
 
-// HealthCheckHandler returns an HTTP handler for health checks, open to any
+// HealthCheckHandler returns an HTTP handler for liveness/diagnostic checks, open to any
 // request that can reach it — no auth of its own. LastError frequently
 // contains chat IDs, user IDs, or upstream error text (whatever a handler
 // returned), so bind this to localhost, put auth in front, or pass a
@@ -153,10 +164,29 @@ type HealthGate func(*http.Request) bool
 // public address.
 func (hm *HealthMonitor) HealthCheckHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(hm.GetStatus())
+		hm.writeStatus(w, http.StatusOK)
 	}
+}
+
+// ReadinessHandler returns the same status payload as HealthCheckHandler,
+// but responds with 503 until the bot is running. It is suitable for a
+// load-balancer or Kubernetes readiness probe; /health remains a liveness
+// and diagnostic endpoint that reports counters with HTTP 200.
+func (hm *HealthMonitor) ReadinessHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		status := hm.GetStatus()
+		code := http.StatusServiceUnavailable
+		if status.Status == "running" {
+			code = http.StatusOK
+		}
+		hm.writeStatus(w, code)
+	}
+}
+
+func (hm *HealthMonitor) writeStatus(w http.ResponseWriter, code int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	_ = json.NewEncoder(w).Encode(hm.GetStatus())
 }
 
 // gatedHealthHandler wraps handler so a request failing gate gets 403
@@ -172,8 +202,8 @@ func gatedHealthHandler(handler http.HandlerFunc, gate HealthGate) http.HandlerF
 	}
 }
 
-// StartHealthServer serves /health and /healthz on addr until ctx is
-// canceled, then shuts down gracefully. It blocks; run it in a goroutine
+// StartHealthServer serves /health (liveness) and /healthz (readiness) on
+// addr until ctx is canceled, then shuts down gracefully. It blocks; run it in a goroutine
 // ([TelegramBot.StartHealthServer] does).
 //
 // gate, if given, is checked on every request; a false return responds 403
@@ -183,14 +213,16 @@ func gatedHealthHandler(handler http.HandlerFunc, gate HealthGate) http.HandlerF
 // anyone who can reach addr — see [HealthCheckHandler]'s doc for what that
 // exposes.
 func (hm *HealthMonitor) StartHealthServer(ctx context.Context, addr string, gate ...HealthGate) error {
-	handler := hm.HealthCheckHandler()
+	healthHandler := hm.HealthCheckHandler()
+	readyHandler := hm.ReadinessHandler()
 	if len(gate) > 0 && gate[0] != nil {
-		handler = gatedHealthHandler(handler, gate[0])
+		healthHandler = gatedHealthHandler(healthHandler, gate[0])
+		readyHandler = gatedHealthHandler(readyHandler, gate[0])
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/health", handler)
-	mux.HandleFunc("/healthz", handler) // Kubernetes-style endpoint
+	mux.HandleFunc("/health", healthHandler)
+	mux.HandleFunc("/healthz", readyHandler) // Kubernetes-style readiness endpoint
 
 	server := &http.Server{
 		Addr:         addr,

@@ -84,6 +84,7 @@ func WithBroadcastProgress(fn func(BroadcastProgress)) BroadcastOption {
 // broadcast that runs to completion returns (result, nil) — per-chat
 // failures never surface as the returned error, only through the result.
 func Broadcast(ctx context.Context, chatIDs []int64, send BroadcastSendFunc, opts ...BroadcastOption) (*BroadcastResult, error) {
+	ctx = nonNilContext(ctx)
 	cfg := &broadcastConfig{rate: 25, concurrency: 10}
 	for _, opt := range opts {
 		opt(cfg)

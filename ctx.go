@@ -39,7 +39,7 @@ type Ctx struct {
 
 func newCtx(parent context.Context, u *Update, bot *TelegramBot, client *api.Client, fsm FSMStorage, botUsername string) *Ctx {
 	return &Ctx{
-		Context:     parent,
+		Context:     nonNilContext(parent),
 		Update:      u,
 		bot:         bot,
 		api:         client,

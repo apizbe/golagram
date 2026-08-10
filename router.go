@@ -1,6 +1,9 @@
 package golagram
 
-import "errors"
+import (
+	"errors"
+	"sync/atomic"
+)
 
 // HandlerFunc is what every handler looks like, regardless of update kind.
 // [Ctx] exposes whichever payload this update carries (c.Message,
@@ -68,7 +71,8 @@ var ErrSkipHandler = errors.New("golagram: skip to next handler")
 // registration order (first match wins). Compose routers with
 // [Router.Include]: a router included partway through registration is
 // tried at that point in the overall order, with its own middleware
-// applied only to its own handlers.
+// applied only to its own handlers. A router freezes on its first dispatch;
+// register routes and middleware before starting the bot.
 //
 // A kind's "default" handler is just a registration with no filters,
 // placed last for that kind — since registration order is priority, it
@@ -78,6 +82,7 @@ type Router struct {
 	outerMiddlewares []OuterMiddlewareFunc
 	routes           []route
 	errorHandler     ErrorHandlerFunc
+	frozen           atomic.Bool
 }
 
 type route struct {
@@ -100,6 +105,7 @@ func NewRouter() *Router {
 // Use registers middleware that wraps every handler matched by this router
 // (not included sub-routers' own middleware, which is theirs alone).
 func (r *Router) Use(mw MiddlewareFunc) {
+	r.ensureMutable()
 	r.middlewares = append(r.middlewares, mw)
 }
 
@@ -110,6 +116,7 @@ func (r *Router) Use(mw MiddlewareFunc) {
 // shared with) whichever router included it — register on every router in
 // the tree that needs it, same guidance as Use's doc.
 func (r *Router) UseOuter(mw OuterMiddlewareFunc) {
+	r.ensureMutable()
 	r.outerMiddlewares = append(r.outerMiddlewares, mw)
 }
 
@@ -122,7 +129,28 @@ func (r *Router) UseOuter(mw OuterMiddlewareFunc) {
 // anywhere in the chain falls through to [TelegramBot.OnError], exactly as
 // before per-router error handlers existed.
 func (r *Router) OnError(h ErrorHandlerFunc) {
+	r.ensureMutable()
 	r.errorHandler = h
+}
+
+func (r *Router) ensureMutable() {
+	if r.frozen.Load() {
+		panic("golagram: Router is frozen; register routes and middleware before starting the bot")
+	}
+}
+
+// freeze prevents route and middleware mutation while dispatch is reading
+// the router concurrently. It is recursive because included routers are
+// dispatched as part of the same immutable route tree.
+func (r *Router) freeze() {
+	if !r.frozen.CompareAndSwap(false, true) {
+		return
+	}
+	for _, rt := range r.routes {
+		if rt.sub != nil {
+			rt.sub.freeze()
+		}
+	}
 }
 
 // handleOrBubble applies r's OnError to err, if both are set, treating it
@@ -152,6 +180,10 @@ func (r *Router) handleOrBubble(err error, ctx *Ctx) error {
 // call sub.Use(mw) directly (or register mw on every router in the tree
 // that needs it) rather than relying on Include to propagate it.
 func (r *Router) Include(sub *Router) {
+	r.ensureMutable()
+	if sub == nil {
+		panic("golagram: Router.Include cannot include a nil router")
+	}
 	if sub.reaches(r) {
 		panic("golagram: Router.Include would create a cycle")
 	}
@@ -218,6 +250,7 @@ func (r *Router) collectUsedUpdateKinds(seen map[string]bool) {
 // calling next, giving this router's OnError a first chance at it exactly
 // like a handler error gets.
 func (r *Router) dispatch(ctx *Ctx) (matched bool, err error) {
+	r.freeze()
 	next := r.dispatchRoutes
 	for i := len(r.outerMiddlewares) - 1; i >= 0; i-- {
 		next = r.outerMiddlewares[i](next)
@@ -311,6 +344,7 @@ type registration struct {
 //
 //	r.Message(gg.FilterCommand("photo")).WithFlags(map[string]any{"chat_action": "upload_photo"}).Handle(sendPhotoHandler)
 func (reg *registration) WithFlags(flags map[string]any) *registration {
+	reg.r.ensureMutable()
 	reg.flags = flags
 	return reg
 }
@@ -342,6 +376,7 @@ func (reg *registration) WithFlags(flags map[string]any) *registration {
 // an ErrSkipHandler fallthrough from one another (same router, same update
 // kind, overlapping filters) the same AllowWebhookReply setting.
 func (reg *registration) AllowWebhookReply() *registration {
+	reg.r.ensureMutable()
 	reg.allowWebhookReply = true
 	return reg
 }
@@ -349,6 +384,7 @@ func (reg *registration) AllowWebhookReply() *registration {
 // Handle finishes a registration, attaching the handler that runs when
 // match returned true.
 func (reg *registration) Handle(h HandlerFunc) {
+	reg.r.ensureMutable()
 	reg.r.routes = append(reg.r.routes, route{
 		kind:              reg.kind,
 		condition:         reg.match,
@@ -361,6 +397,7 @@ func (reg *registration) Handle(h HandlerFunc) {
 // register builds the registration for one update kind: present gates on
 // the kind's payload being set, then the filters run in order (AND).
 func (r *Router) register(kind string, present func(*Ctx) bool, filters []Filter) *registration {
+	r.ensureMutable()
 	return &registration{r: r, kind: kind, match: func(c *Ctx) bool {
 		if !present(c) {
 			return false

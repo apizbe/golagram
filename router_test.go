@@ -28,6 +28,21 @@ func TestRouter_Message_DispatchesToMatchingHandler(t *testing.T) {
 	}
 }
 
+func TestRouter_FreezesAfterFirstDispatch(t *testing.T) {
+	r := NewRouter()
+	r.Message().Handle(func(*Ctx) error { return nil })
+	matched, err := r.dispatch(msgCtx(&Message{Text: "hi"}))
+	if !matched || err != nil {
+		t.Fatalf("dispatch = (%v, %v), want matched without error", matched, err)
+	}
+	defer func() {
+		if recover() == nil {
+			t.Error("expected route mutation after freeze to panic")
+		}
+	}()
+	r.Message().Handle(func(*Ctx) error { return nil })
+}
+
 func TestRouter_FirstMatchWins(t *testing.T) {
 	r := NewRouter()
 

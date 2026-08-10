@@ -14,8 +14,8 @@ func TestHealthMonitor_StartsWithZeroedCounters(t *testing.T) {
 	hm := NewHealthMonitor()
 	status := hm.GetStatus()
 
-	if status.Status != "ok" {
-		t.Errorf("Status = %q, want ok", status.Status)
+	if status.Status != "starting" {
+		t.Errorf("Status = %q, want starting", status.Status)
 	}
 	if status.UpdatesDispatched != 0 || status.HandlersMatched != 0 ||
 		status.UpdatesUnmatched != 0 || status.ErrorsCount != 0 {
@@ -150,6 +150,22 @@ func TestGatedHealthHandler_ServesWhenGateReturnsTrue(t *testing.T) {
 
 	if rec.Code != http.StatusOK {
 		t.Errorf("status code = %d, want 200 when the gate allows the request", rec.Code)
+	}
+}
+
+func TestHealthMonitor_ReadinessHandler_ReportsNotReadyUntilRunning(t *testing.T) {
+	hm := NewHealthMonitor()
+	req := httptest.NewRequest("GET", "/healthz", nil)
+	rec := httptest.NewRecorder()
+	hm.ReadinessHandler()(rec, req)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Errorf("initial readiness status = %d, want 503", rec.Code)
+	}
+	hm.SetStatus("running")
+	rec = httptest.NewRecorder()
+	hm.ReadinessHandler()(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Errorf("running readiness status = %d, want 200", rec.Code)
 	}
 }
 

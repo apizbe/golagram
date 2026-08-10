@@ -343,6 +343,10 @@ func (b *TelegramBot) Me() *User {
 // [FilterCommand]) or username-based deep links after all — call it once,
 // any time before those features are exercised.
 func (b *TelegramBot) LoadMe(ctx context.Context) error {
+	if b.ran.Load() {
+		return fmt.Errorf("golagram: TelegramBot.LoadMe must be called before the bot starts")
+	}
+	ctx = nonNilContext(ctx)
 	me, err := b.GetMe(ctx)
 	if err != nil {
 		return fmt.Errorf("getMe failed: %w", err)
@@ -355,12 +359,20 @@ func (b *TelegramBot) LoadMe(ctx context.Context) error {
 // with an in-process MemoryStorage by default; call this before Run to use
 // a persistent FSMStorage instead.
 func (b *TelegramBot) SetFSMStorage(storage FSMStorage) {
-	b.fsmStorage = storage
+	if b.ran.Load() {
+		panic("golagram: TelegramBot.SetFSMStorage must be called before the bot starts")
+	}
+	if storage != nil {
+		b.fsmStorage = storage
+	}
 }
 
 // Dispatch sets the router that handles every incoming update. Call it
 // before Run.
 func (b *TelegramBot) Dispatch(r *Router) {
+	if b.ran.Load() {
+		panic("golagram: TelegramBot.Dispatch must be called before the bot starts")
+	}
 	b.router = r
 }
 
@@ -370,6 +382,9 @@ func (b *TelegramBot) Dispatch(r *Router) {
 // aborts immediately (no workers started, no polling/serving) and returns
 // that error wrapped.
 func (b *TelegramBot) OnStartup(f LifecycleFunc) {
+	if b.ran.Load() {
+		panic("golagram: TelegramBot.OnStartup must be called before the bot starts")
+	}
 	b.startupHooks = append(b.startupHooks, f)
 }
 
@@ -380,6 +395,9 @@ func (b *TelegramBot) OnStartup(f LifecycleFunc) {
 // shutting down, so there's nothing left to abort, and one hook failing
 // shouldn't skip the others' cleanup.
 func (b *TelegramBot) OnShutdown(f LifecycleFunc) {
+	if b.ran.Load() {
+		panic("golagram: TelegramBot.OnShutdown must be called before the bot starts")
+	}
 	b.shutdownHooks = append(b.shutdownHooks, f)
 }
 
@@ -417,7 +435,12 @@ func (b *TelegramBot) markRan() bool {
 // RunWebhook share — same dispatch(), same concurrency knobs, regardless of
 // how updates arrive.
 func (b *TelegramBot) startWorkers(ctx context.Context) {
+	ctx = nonNilContext(ctx)
 	b.runContext = ctx
+	if b.router != nil {
+		b.router.freeze()
+	}
+	b.healthMonitor.SetStatus("running")
 	for range b.numWorkers {
 		b.wg.Add(1)
 		go func() {
@@ -447,10 +470,16 @@ func (b *TelegramBot) StartWorkers(ctx context.Context) {
 // handler has finished. Idempotent; called automatically by Run/RunWebhook
 // on shutdown, needed directly only by StartWorkers users.
 func (b *TelegramBot) StopWorkers() {
+	// Treat an explicit stop before startup as consuming this one-shot bot.
+	// Without this transition, a later Run could start against the already
+	// closed update channel and panic while queueing its first update.
+	b.ran.CompareAndSwap(false, true)
+	b.healthMonitor.SetStatus("stopping")
 	b.stopOnce.Do(func() {
 		close(b.updateChan)
 		b.wg.Wait()
 	})
+	b.healthMonitor.SetStatus("stopped")
 }
 
 // runCtx returns the context the bot is running under, or Background before
@@ -498,11 +527,13 @@ func (b *TelegramBot) bindMessage(ctx context.Context, m *Message) {
 // Run/RunWebhook/StartWorkers has returned returns errAlreadyRan instead of
 // polling.
 func (b *TelegramBot) Run(ctx context.Context) error {
+	ctx = nonNilContext(ctx)
 	if !b.markRan() {
 		return errAlreadyRan
 	}
 
 	if err := b.runStartupHooks(ctx); err != nil {
+		b.healthMonitor.SetStatus("error")
 		return fmt.Errorf("startup hook: %w", err)
 	}
 
@@ -628,6 +659,9 @@ func (b *TelegramBot) getUpdates(ctx context.Context, offset int64, allowedUpdat
 // handler sugar (Answer, FSM, command matching) works regardless of which
 // field on Update it came in on.
 func (b *TelegramBot) hydrate(u *Update) {
+	if u == nil {
+		return
+	}
 	b.hydrateMessage(u.Message)
 	b.hydrateMessage(u.EditedMessage)
 	b.hydrateMessage(u.ChannelPost)
@@ -681,6 +715,12 @@ func (b *TelegramBot) dispatch(ctx context.Context, u *Update) {
 // to attach a router first — with no router attached, HandleUpdate is a
 // no-op that still counts the update as unmatched.
 func (b *TelegramBot) HandleUpdate(ctx context.Context, u *Update) {
+	if u == nil {
+		return
+	}
+	if b.router != nil {
+		b.router.freeze()
+	}
 	b.hydrate(u)
 	b.dispatch(ctx, u)
 }
@@ -790,6 +830,9 @@ func (b *TelegramBot) SetBotCommands(commands []BotCommand) error {
 // recovered handler panic) that no router-level [Router.OnError] already
 // handled. Without one set, such errors are just logged.
 func (b *TelegramBot) OnError(handler ErrorHandlerFunc) {
+	if b.ran.Load() {
+		panic("golagram: TelegramBot.OnError must be called before the bot starts")
+	}
 	b.errorHandler = handler
 }
 
