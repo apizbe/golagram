@@ -114,7 +114,7 @@ feature each.
   layout/pagination builders, HTML/MarkdownV2 escaping, deep links,
   Telegram Stars payments, WebApp/Login Widget validation (HMAC and
   Ed25519), i18n with real CLDR plural rules, paced `Broadcast`, a
-  `/health` endpoint, and Bot API 10.1 Rich Messages.
+  `/health` endpoint, and Bot API 10.2 Rich Messages.
 
 ## Learn it
 

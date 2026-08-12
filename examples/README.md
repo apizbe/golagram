@@ -1,6 +1,6 @@
 # Examples
 
-Thirteen small, single-file bots, each demonstrating one golagram feature,
+Fourteen small, single-file bots, each demonstrating one golagram feature,
 plus one full-featured multi-file bot showing how they compose. No per-example
 `go.mod` — they import `github.com/apizbe/golagram` directly, so
 any of them runs immediately after cloning:
